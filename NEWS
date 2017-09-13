@@ -1,15 +1,47 @@
                    stringi package NEWS and CHANGELOG
 ===============================================================================
 
+## 1.1.6 (on the way)
 
-## 1.1.4 (2017-04-06) **CRAN**
+* @TODO:........[GENERAL] #69: `stringi` is now bundled with ICU4C 59.1.
+update to ICU 59 if c++11, stay ICU 55 on Solaris #193
+
+* [WINDOWS SPECIFIC] #270: Strings marked with `latin1` encoding
+are now converted internally to UTF-8 using the WINDOWS-1252 codec.
+This fixes problems with - among others - displaying the Euro sign.
+
+* [NEW FEATURE] #263: Add support for custom rule-based break iteration,
+see `?stri_opts_brkiter`.
+
+* emojis......
+
+* stri_width for emojis....
+
+* [NEW FEATURE] #267: `omit_na=TRUE` in `stri_sub<-` now ignores missing values
+in any of the arguments provided.
+
+* t.b.d.
+
+-------------------------------------------------------------------------------
+
+## 1.1.5 (2017-04-07) **CRAN**
+
+* [GENERAL] `stringi` now requires ICU4C >= 52.
+
+* [BUGFIX] Fixed errors pointed out by `clang-UBSAN` in `stri_brkiter.h`.
+
+-------------------------------------------------------------------------------
+
+## 1.1.4 (2017-04-06) **devel**
+
+* [GENERAL] `stringi` now requires R >= 2.14.
 
 * [BUILD TIME] #238, #220: Try "standard" ICU4C build flags if a call
 to `pkg-config` fails.
 
-* [BUILD TIME] #258: Use `CXX11` instead of `CXX1X` on R >= 3.4.0.
+* [BUILD TIME] #258: Use `CXX11` instead of `CXX1X` on R >= 3.4.
 
-* [BUILD TIME, BUGFIX] #254: `dir.exists()` is R >= 3.2.0.
+* [BUILD TIME, BUGFIX] #254: `dir.exists()` is R >= 3.2.
 
 -------------------------------------------------------------------------------
 
