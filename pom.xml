@@ -7,7 +7,7 @@
   <version>1.2-SNAPSHOT</version>
 
   <properties>
-    <renjin.version>0.8.2374</renjin.version>
+    <renjin.version>0.8.2423</renjin.version>
   </properties>
 
   <distributionManagement>
@@ -42,6 +42,11 @@
       <groupId>org.renjin</groupId>
       <artifactId>utils</artifactId>
       <version>${renjin.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.ibm.icu</groupId>
+      <artifactId>icu4j</artifactId>
+      <version>59.1</version>
     </dependency>
   </dependencies>
   <repositories>
