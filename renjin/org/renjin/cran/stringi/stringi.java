@@ -1,16 +1,21 @@
 package org.renjin.cran.stringi;
 
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
+
 import org.renjin.eval.EvalException;
-import org.renjin.invoke.reflection.converters.AtomicVectorConverter;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
-import org.renjin.sexp.AtomicVector;
+import org.renjin.sexp.ExpressionVector;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 
-import java.lang.reflect.Method;
+import com.ibm.icu.text.UnicodeSet;
+import com.ibm.icu.text.UnicodeSetSpanner;
+import com.ibm.icu.text.UnicodeSetSpanner.TrimOption;
 
 /**
  * Substitute implementations for C functions
@@ -22,13 +27,17 @@ public class stringi {
     // Register all methods in this class
     for (Method method : stringi.class.getMethods()) {
       if(method.getName().startsWith("stri_")) {
-        DllSymbol symbol = new DllSymbol(method);
-        symbol.setName("C_" + method.getName());
-        symbol.setConvention(DllSymbol.Convention.CALL);
-
-        dll.register(symbol);
+        try {
+          final String methodName = "C_" + method.getName();
+          final MethodHandle methodHandle = MethodHandles.publicLookup().unreflect(method);
+          final DllSymbol symbol = new DllSymbol(methodName, methodHandle, DllSymbol.Convention.CALL);
+          dll.register(symbol);
+        } catch (IllegalAccessException e) {
+          throw new EvalException("Cannot access method '%s': %s", method.getName(), e.getMessage(), e);
+        }
       }
     }
+
   }
 
   public static SEXP stri_cmp_eq(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -200,27 +209,62 @@ public class stringi {
   public static SEXP stri_trans_totitle(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_tolower(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_toupper(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trim_both(SEXP vectorSexp, SEXP patternSexp) {
-    AtomicVector vector = (AtomicVector) vectorSexp;
-    AtomicVector pattern = (AtomicVector) patternSexp;
-
-    int length = Math.max(vector.length(), pattern.length());
-    String[] result = new String[length];
-
-    for (int i = 0; i < length; i++) {
-      String x = vector.getElementAsString(i % vector.length());
-
-      if(x != null) {
-        result[i] = x.trim();
-      }
-    }
-    return new StringArrayVector(result);
+  public static SEXP stri_trim_both(SEXP str, SEXP pattern) {
+    return __trim_left_right(str, pattern, TrimOption.BOTH);
   }
-  public static SEXP stri_trim_left(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trim_right(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_trim_left(SEXP str, SEXP pattern) {
+    return __trim_left_right(str, pattern, TrimOption.LEADING);
+  }
+  public static SEXP stri_trim_right(SEXP str, SEXP pattern) {
+    return __trim_left_right(str, pattern, TrimOption.TRAILING);
+  }
   public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_unique(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_width(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_wrap(SEXP s1) { throw new EvalException("TODO"); }
 
+  private static int __max_length(SEXP argument, SEXP... arguments) {
+    int length = argument.length();
+    for (SEXP arg: arguments) {
+    	  length = Math.max(length, arg.length());
+    }
+    return length;
+  }
+  private static ExpressionVector __ensure_length(int length, SEXP exp) {
+    final int expLength = exp.length();
+    if (length == expLength && exp instanceof ExpressionVector) {
+      return (ExpressionVector) exp;
+    }
+    final SEXP[] result = new SEXP[length];
+    for (int i = 0; i < length; i++) {
+      result[i] = exp.getElementAsSEXP(i % expLength);
+    }
+    return new ExpressionVector(result);
+  }
+  private static SEXP __trim_left_right(SEXP str, SEXP pattern, TrimOption side) {
+    final int length = __max_length(str, pattern);
+    final String[] result = new String[length];
+    final ExpressionVector strings = __ensure_length(length, str);
+    final ExpressionVector patterns = __ensure_length(length, pattern);
+
+    String lastPattern = null;
+    for (int i = 0; i < length; i++) {
+      UnicodeSetSpanner matcher = null;
+    	  if (strings.isElementNA(i) || patterns.isElementNA(i)) {
+    	    result[i] = StringVector.NA;
+    	  } else {
+        String element = strings.getElementAsString(i);
+        final String preservedPattern = patterns.getElementAsString(i);
+        if (!preservedPattern.equals(lastPattern)) {
+          lastPattern = preservedPattern;
+          // UnicodeSetSpanner will *remove* all characters matching its set
+          // therefore we need to "invert" the pattern
+          matcher = new UnicodeSetSpanner(new UnicodeSet(UnicodeSet.ALL_CODE_POINTS).removeAll(new UnicodeSet(preservedPattern)));
+        }
+        result[i] = matcher.trim(element, side).toString();
+    	  }
+    }
+
+    return new StringArrayVector(result);
+  }
 }
