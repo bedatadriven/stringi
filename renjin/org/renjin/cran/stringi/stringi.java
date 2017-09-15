@@ -248,20 +248,18 @@ public class stringi {
     final ExpressionVector patterns = __ensure_length(length, pattern);
 
     String lastPattern = null;
+    UnicodeSetSpanner matcher = null;
     for (int i = 0; i < length; i++) {
-      UnicodeSetSpanner matcher = null;
     	  if (strings.isElementNA(i) || patterns.isElementNA(i)) {
     	    result[i] = StringVector.NA;
     	  } else {
-        String element = strings.getElementAsString(i);
+        final String element = strings.getElementAsString(i);
         final String preservedPattern = patterns.getElementAsString(i);
         if (!preservedPattern.equals(lastPattern)) {
           lastPattern = preservedPattern;
-          // UnicodeSetSpanner will *remove* all characters matching its set
-          // therefore we need to "invert" the pattern
-          matcher = new UnicodeSetSpanner(new UnicodeSet(UnicodeSet.ALL_CODE_POINTS).removeAll(new UnicodeSet(preservedPattern)));
+          matcher = new UnicodeSetSpanner(new UnicodeSet(preservedPattern));
         }
-        result[i] = matcher.trim(element, side).toString();
+        result[i] = matcher.trim(element, side, UnicodeSet.SpanCondition.NOT_CONTAINED).toString();
     	  }
     }
 
