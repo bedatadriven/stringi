@@ -89,12 +89,10 @@
               <timeoutInSeconds>30</timeoutInSeconds>
               <testSourceDirectory>${basedir}/tests</testSourceDirectory>
               <defaultPackages>
-                <package>methods</package>
                 <package>stats</package>
                 <package>utils</package>
                 <package>grDevices</package>
                 <package>graphics</package>
-                <package>datasets</package>
               </defaultPackages>
             </configuration>
           </execution>
