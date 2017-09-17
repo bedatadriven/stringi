@@ -92,14 +92,14 @@ public class stringi {
   public static SEXP stri_enc_fromutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
-    final boolean strict_ascii = is_unknown_8bit.getElementAsSEXP(0).asLogical().toBooleanStrict(); 
+    final boolean strict_ascii = is_unknown_8bit.getElementAsSEXP(0).asLogical().toBooleanStrict();
     final int length = str.length();
     final String[] result = new String[length];
-    
+
     for (int i = 0; i < length; i++) {
       final String element = str.getElementAsSEXP(i).asString();
       if (strict_ascii) {
-        result[i] = element.replaceAll("[^\u0000-\u008F]", "\uFFFD");
+        result[i] = element.replaceAll("[^\u0000-\u007F]", "\uFFFD");
       } else {
         result[i] = element;
       }
@@ -143,17 +143,17 @@ public class stringi {
     final String filler = fill.getElementAsSEXP(0).asString();
     final int depth = n_min.getElementAsSEXP(0).asInt();
     final int length = x.length();
-    
+
     if (depth < 0) {
       // TODO log error message: "argument `n_min`: expected a nonnegative numeric value"
     }
-    
+
     int maxVectorLength = depth;
     for (int i = 0; i < length; i++) {
       maxVectorLength = Math.max(maxVectorLength, x.getElementAsSEXP(i).length());
     }
     final String[] result = new String[length * maxVectorLength];
-    
+
     if (bycolumn) {
       int index = 0;
       for (int i = 0; i < length; i++) {
@@ -268,7 +268,7 @@ public class stringi {
           }
           final LinkedList<String> fields = new LinkedList<String>();
           final String element = strings.getElementAsString(i);
-          final String separatorPattern = __normalize_pattern(patterns.getElementAsString(i));
+          final String separatorPattern = __normalize_binary_properties(patterns.getElementAsString(i));
           if (!separatorPattern.equals(lastPattern)) {
             lastPattern = separatorPattern;
             matcher = new UnicodeSet(separatorPattern);
@@ -437,7 +437,7 @@ public class stringi {
                 depth++; // we need to do one split ahead here
               }
               final LinkedList<String> fields = new LinkedList<String>();
-              final Matcher matcher = Pattern.compile(__normalize_pattern(patterns.getElementAsString(i)), flags).matcher(element);
+              final Matcher matcher = Pattern.compile(__normalize_binary_properties(patterns.getElementAsString(i)), flags).matcher(element);
               int previousStart = 0;
               for (int k = 0; k < depth && matcher.find();) {
                 final int beginIndex = matcher.start();
@@ -649,8 +649,30 @@ public class stringi {
 
     return flags;
   }
-  private static String __normalize_pattern(String pattern) {
-    return (null == pattern) ? null : pattern.replace("{WHITE_SPACE}", "{Space}");
+  private static String __normalize_binary_properties(String pattern) {
+    if (null == pattern) {
+      return null;
+    } else {
+      // Java gives a different name to the supported Unicode binary properties
+      // see https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#ubpc
+      // @formatter:off
+      return pattern
+          .replace("{ALPHABETIC}", "{IsAlphabetic}")
+          .replace("{IDEOGRAPHIC}", "{IsIdeographic}")
+          .replace("{LETTER}", "{IsLetter}")
+          .replace("{LOWERCASE}", "{IsLowercase}")
+          .replace("{UPPERCASE}", "{IsUppercase}")
+          .replace("{TITLECASE}", "{IsTitlecase}")
+          .replace("{PUNCTUATION}", "{IsPunctuation}")
+          .replace("{CONTROL}", "{IsControl}")
+          .replace("{WHITE_SPACE}", "{IsWhite_Space}")
+          .replace("{DIGIT}", "{IsDigit}")
+          .replace("{HEX_DIGIT}", "{IsHex_Digit}")
+          .replace("{JOIN_CONTROL}", "{IsJoin_Control}")
+          .replace("{NONCHARACTER_CODE_POINT}", "{IsNoncharacter_Code_Point}")
+          .replace("{ASSIGNED}", "{IsAssigned}");
+      // @formatter:on
+    }
   }
   private static SEXP __simplify_when_required(SEXP resultSexp, SEXP simplify, SEXP n) {
     final Logical first_simplify = simplify.getElementAsSEXP(0).asLogical();
