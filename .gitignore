@@ -48,3 +48,13 @@ devel/benchmarks/figure
 devel/benchmarks/report-*.md
 devel/benchmarks/report-*.html
 devel/benchmarks/test1.csv.gz
+
+# Eclipse files:
+.classpath
+.project
+.settings
+/target/
+
+# Vagrant files:
+.vagrant
+Vagrantfile
