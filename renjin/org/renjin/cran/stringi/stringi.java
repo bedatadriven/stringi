@@ -9,9 +9,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.renjin.eval.EvalException;
+import org.renjin.primitives.Native;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
-import org.renjin.sexp.ExpressionVector;
+import org.renjin.sexp.AtomicVector;
 import org.renjin.sexp.IntArrayVector;
 import org.renjin.sexp.IntVector;
 import org.renjin.sexp.ListVector;
@@ -92,12 +93,12 @@ public class stringi {
   public static SEXP stri_enc_fromutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
-    final boolean strict_ascii = is_unknown_8bit.getElementAsSEXP(0).asLogical().toBooleanStrict();
+    final boolean strict_ascii = ((AtomicVector) is_unknown_8bit).getElementAsLogical(0).toBooleanStrict();
     final int length = str.length();
     final String[] result = new String[length];
 
     for (int i = 0; i < length; i++) {
-      final String element = str.getElementAsSEXP(i).asString();
+      final String element = ((AtomicVector) str).getElementAsString(i);
       if (strict_ascii) {
         result[i] = element.replaceAll("[^\u0000-\u007F]", "\uFFFD");
       } else {
@@ -139,13 +140,13 @@ public class stringi {
   public static SEXP stri_join2(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_length(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_list2matrix(SEXP x, SEXP byrow, SEXP fill, SEXP n_min) {
-    final boolean bycolumn = !byrow.getElementAsSEXP(0).asLogical().toBooleanStrict();
-    final String filler = fill.getElementAsSEXP(0).asString();
-    final int depth = n_min.getElementAsSEXP(0).asInt();
+    final boolean bycolumn = !((AtomicVector) byrow).getElementAsLogical(0).toBooleanStrict();
+    final String filler = ((AtomicVector) fill).getElementAsString(0);
+    final int depth = ((AtomicVector) n_min).getElementAsInt(0);
     final int length = x.length();
 
     if (depth < 0) {
-      // TODO log error message: "argument `n_min`: expected a nonnegative numeric value"
+      throw new EvalException("argument `n_min`: expected a nonnegative numeric value");
     }
 
     int maxVectorLength = depth;
@@ -157,11 +158,11 @@ public class stringi {
     if (bycolumn) {
       int index = 0;
       for (int i = 0; i < length; i++) {
-        final SEXP column = x.getElementAsSEXP(i);
+        final AtomicVector column = x.getElementAsSEXP(i);
         final int colLength = column.length();
         int j = 0;
         for (;j < colLength; ++j) {
-          result[index++] = column.getElementAsSEXP(j).asString();
+          result[index++] = column.getElementAsString(j);
         }
         for (;j < maxVectorLength; ++j) {
           result[index++] = filler;
@@ -172,11 +173,11 @@ public class stringi {
       return matrix;
     } else {
       for (int i = 0; i < length; i++) {
-        final SEXP column = x.getElementAsSEXP(i);
+        final AtomicVector column = x.getElementAsSEXP(i);
         final int colLength = column.length();
         int j = 0;
         for (;j < colLength; ++j) {
-          result[i + j * length] = column.getElementAsSEXP(j).asString();
+          result[i + j * length] = column.getElementAsString(j);
         }
         for (;j < maxVectorLength; ++j) {
           result[i + j * length] = filler;
@@ -240,13 +241,13 @@ public class stringi {
   public static SEXP stri_reverse(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_split_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_split_charclass(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify) {
-    final boolean only_tokens = tokens_only.getElementAsSEXP(0).asLogical().toBooleanStrict();
+    final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __max_length(str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final ExpressionVector strings = __ensure_length(length, str);
-    final ExpressionVector patterns = __ensure_length(length, pattern);
-    final ExpressionVector ns = __ensure_length(length, n);
-    final ExpressionVector omits = __ensure_length(length, omit_empty);
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector ns = __ensure_length(length, n);
+    final ListVector omits = __ensure_length(length, omit_empty);
 
     String lastPattern = null;
     UnicodeSet matcher = null;
@@ -301,20 +302,20 @@ public class stringi {
       }
     }
 
-    final ExpressionVector resultSexp = new ExpressionVector(result);
+    final ListVector resultSexp = new ListVector(result);
     return __simplify_when_required(resultSexp, simplify, n);
   }
   public static SEXP stri_split_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5, SEXP s6, SEXP s7) { throw new EvalException("TODO"); }
   public static SEXP stri_split_fixed(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_fixed) {
-    final boolean only_tokens = tokens_only.getElementAsSEXP(0).asLogical().toBooleanStrict();
+    final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, false);
     final boolean is_insensitive = flags == Pattern.CASE_INSENSITIVE;
     final int length = __max_length(str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final ExpressionVector strings = __ensure_length(length, str);
-    final ExpressionVector patterns = __ensure_length(length, pattern);
-    final ExpressionVector ns = __ensure_length(length, n);
-    final ExpressionVector omits = __ensure_length(length, omit_empty);
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector ns = __ensure_length(length, n);
+    final ListVector omits = __ensure_length(length, omit_empty);
 
     for (int i = 0; i < length; i++) {
       if (ns.isElementNA(i)) {
@@ -322,7 +323,7 @@ public class stringi {
       } else {
         if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
           if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
-            // TODO log warning message: "empty search patterns are not supported"
+            Native.currentContext().warn("empty search patterns are not supported");
           }
           result[i] = StringVector.valueOf(StringVector.NA);
         } else {
@@ -389,20 +390,20 @@ public class stringi {
       }
     }
 
-    final ExpressionVector resultSexp = new ExpressionVector(result);
+    final ListVector resultSexp = new ListVector(result);
     return __simplify_when_required(resultSexp, simplify, n);
   }
   public static SEXP stri_split_lines(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_split_lines1(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_split_regex(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_regex) {
-    final boolean only_tokens = tokens_only.getElementAsSEXP(0).asLogical().toBooleanStrict();
+    final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int flags = __regex_flags(opts_regex);
     final int length = __max_length(str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final ExpressionVector strings = __ensure_length(length, str);
-    final ExpressionVector patterns = __ensure_length(length, pattern);
-    final ExpressionVector ns = __ensure_length(length, n);
-    final ExpressionVector omits = __ensure_length(length, omit_empty);
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector ns = __ensure_length(length, n);
+    final ListVector omits = __ensure_length(length, omit_empty);
 
     for (int i = 0; i < length; i++) {
       if (ns.isElementNA(i)) {
@@ -410,7 +411,7 @@ public class stringi {
       } else {
         if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
           if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
-            // TODO log warning message: "empty search patterns are not supported"
+            Native.currentContext().warn("empty search patterns are not supported");
           }
           result[i] = StringVector.valueOf(StringVector.NA);
         } else {
@@ -468,7 +469,7 @@ public class stringi {
       }
     }
 
-    final ExpressionVector resultSexp = new ExpressionVector(result);
+    final ListVector resultSexp = new ListVector(result);
     return __simplify_when_required(resultSexp, simplify, n);
   }
   public static SEXP stri_startswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
@@ -531,22 +532,22 @@ public class stringi {
     }
     return length;
   }
-  private static ExpressionVector __ensure_length(int length, SEXP exp) {
+  private static ListVector __ensure_length(int length, SEXP exp) {
     final int expLength = exp.length();
-    if (length == expLength && exp instanceof ExpressionVector) {
-      return (ExpressionVector) exp;
+    if (length == expLength && exp instanceof ListVector) {
+      return (ListVector) exp;
     }
     final SEXP[] result = new SEXP[length];
     for (int i = 0; i < length; i++) {
       result[i] = exp.getElementAsSEXP(i % expLength);
     }
-    return new ExpressionVector(result);
+    return new ListVector(result);
   }
   private static SEXP __trim_left_right(SEXP str, SEXP pattern, TrimOption side) {
     final int length = __max_length(str, pattern);
     final String[] result = new String[length];
-    final ExpressionVector strings = __ensure_length(length, str);
-    final ExpressionVector patterns = __ensure_length(length, pattern);
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
 
     String lastPattern = null;
     UnicodeSetSpanner matcher = null;
@@ -574,11 +575,11 @@ public class stringi {
       final ListVector options = (ListVector) opts_fixed;
       final StringVector names = (StringVector) opts_fixed.getAttribute(Symbols.NAMES);
       if (names == null || narg != names.length()) {
-        // TODO log error message: "regexp engine config failed"
+        throw new EvalException("regexp engine config failed");
       }
       for (int i = 0; i < narg; i++) {
         if (names.isElementNA(i)) {
-          // TODO log error message: "regexp engine config failed"
+          throw new EvalException("regexp engine config failed");
         }
         final String name = names.getElementAsString(i);
         if ("case_insensitive".equals(name)) {
@@ -590,7 +591,7 @@ public class stringi {
             flags |= Pattern.COMMENTS;
           }
         } else {
-          // TODO log warning message: "incorrect opts_fixed setting: `" + name + "`. ignoring"
+          Native.currentContext().warn("incorrect opts_fixed setting: `" + name + "`. ignoring");
         }
       }
     }
@@ -605,11 +606,11 @@ public class stringi {
       final ListVector options = (ListVector) opts_regex;
       final StringVector names = (StringVector) opts_regex.getAttribute(Symbols.NAMES);
       if (names == null || narg != names.length()) {
-        // TODO log error message: "regexp engine config failed"
+        throw new EvalException("regexp engine config failed");
       }
       for (int i = 0; i < narg; i++) {
         if (names.isElementNA(i)) {
-          // TODO log error message: "regexp engine config failed"
+          throw new EvalException("regexp engine config failed");
         }
         final String name = names.getElementAsString(i);
         if ("case_insensitive".equals(name)) {
@@ -642,7 +643,7 @@ public class stringi {
           // in Java it is always an error to use a backslash prior to any alphabetic
           // character that does not denote an escaped construct
         } else {
-          // TODO log warning message: "incorrect opts_regex setting: `" + name + "`. ignoring"
+          Native.currentContext().warn("incorrect opts_regex setting: `" + name + "`. ignoring");
         }
       }
     }
@@ -675,13 +676,13 @@ public class stringi {
     }
   }
   private static SEXP __simplify_when_required(SEXP resultSexp, SEXP simplify, SEXP n) {
-    final Logical first_simplify = simplify.getElementAsSEXP(0).asLogical();
+    final Logical first_simplify = ((AtomicVector) simplify).getElementAsLogical(0);
     if (first_simplify.equals(Logical.FALSE)) {
       return resultSexp;
     } else { // NA or TRUE
       int required_depth = 0;
       for (int i = 0; i < n.length(); i++) {
-        required_depth = Math.max(required_depth, n.getElementAsSEXP(i).asInt());
+        required_depth = Math.max(required_depth, ((AtomicVector) n).getElementAsInt(i));
       }
       final String filler = first_simplify.equals(Logical.NA) ? StringVector.NA : "";
       return stri_list2matrix(resultSexp, LogicalVector.valueOf(true), StringVector.valueOf(filler), IntVector.valueOf(required_depth));
