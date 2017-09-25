@@ -93,23 +93,23 @@ public class stringi {
   public static SEXP stri_enc_fromutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
-    final boolean strict_ascii = ((AtomicVector) is_unknown_8bit).getElementAsLogical(0).toBooleanStrict();
-    final int length = str.length();
-    final String[] result = new String[length];
-
-    for (int i = 0; i < length; i++) {
-      final String element = ((AtomicVector) str).getElementAsString(i);
-      if (strict_ascii) {
-        result[i] = element.replaceAll("[^\u0000-\u007F]", "\uFFFD");
-      } else {
-        result[i] = element;
-      }
-    }
-
     // in Java, the invalid code points would result in an exception at the time of reading the string
     // we cannot replace here invalid code points by \uFFFD or invalid strings by NA
 
-    return new StringArrayVector(result);
+    final boolean strict_ascii = ((AtomicVector) is_unknown_8bit).getElementAsLogical(0).toBooleanStrict();
+    if (strict_ascii) {
+      final int length = str.length();
+      final String[] result = new String[length];
+
+      for (int i = 0; i < length; i++) {
+        final String element = ((AtomicVector) str).getElementAsString(i);
+        result[i] = element.replaceAll("[^\u0000-\u007F]", "\uFFFD");
+      }
+
+      return new StringArrayVector(result);
+    } else {
+      return str;
+    }
   }
   public static SEXP stri_enc_toutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_encode(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
