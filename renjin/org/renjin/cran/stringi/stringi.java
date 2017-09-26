@@ -1,6 +1,5 @@
 package org.renjin.cran.stringi;
 
-
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
@@ -137,7 +136,29 @@ public class stringi {
   public static SEXP stri_isempty(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_join(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_join_list(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_join2(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_join2(SEXP s1, SEXP s2) {
+    if (s1.length() <= 0) {
+      return s1;
+    }
+    if (s2.length() <= 0) {
+      return s2;
+    }
+
+    final int length = __max_length(s1, s2);
+    final ListVector e1 = __ensure_length(length, s1);
+    final ListVector e2 = __ensure_length(length, s2);
+    final String[] result = new String[length];
+
+    for (int i = 0; i < length; i++) {
+      if (e1.isElementNA(i) || e2.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        result[i] = e1.getElementAsString(i) + e2.getElementAsString(i);
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_length(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_list2matrix(SEXP x, SEXP byrow, SEXP fill, SEXP n_min) {
     final boolean bycolumn = !((AtomicVector) byrow).getElementAsLogical(0).toBooleanStrict();
@@ -226,18 +247,209 @@ public class stringi {
   public static SEXP stri_rand_shuffle(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_strings(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_replace_na(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_all_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_first_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_last_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_all_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_first_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_last_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_first_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_last_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_all_charclass(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_first_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_last_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_replace_all_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_fixed) {
+    final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
+    if (is_vectorized) {
+      return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.ALL);
+    } else {
+      final int length = str.length();
+      if (length <= 0) {
+        return StringVector.EMPTY;
+      } else {
+        final int pattern_n = pattern.length();
+        final int replacement_n = replacement.length();
+        if (pattern_n < replacement_n || pattern_n <= 0 || replacement_n <= 0) {
+          throw new EvalException("vector length not consistent with other arguments");
+        }
+        if (pattern_n % replacement_n != 0) {
+          Native.currentContext().warn("longer object length is not a multiple of shorter object length");
+        }
+        if (pattern_n == 1) {// this will be much faster:
+          return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.ALL);
+        }
+        final int flags = __fixed_flags(opts_fixed, false);
+        final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+        final String[] result = new String[length];
+        final AtomicVector strings = (AtomicVector) str;
+        final AtomicVector patterns = (AtomicVector) pattern;
+        final ListVector replacements = __ensure_length(pattern_n, replacement);
+        for (int i = 0; i < pattern_n; i++) {
+          if (patterns.isElementNA(i)) {
+            return __string_vector_NA(length);
+          } else if (patterns.getElementAsString(i).length() <= 0) {
+            Native.currentContext().warn("empty search patterns are not supported");
+            return __string_vector_NA(length);
+          }
+          for (int j = 0; j < length; j++) {
+            if (strings.isElementNA(j)) {
+              result[j] = StringVector.NA;
+            } else {
+              final String element = strings.getElementAsString(j);
+              final String separatorPattern = patterns.getElementAsString(i);
+              final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+              final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+              if (replacements.isElementNA(i)) {
+                if (-1 < elementNormalized.indexOf(patternNormalized)) {
+                  result[j] = StringVector.NA;
+                } else {
+                  result[j] = element;
+                }
+              } else {
+                final String replacement_i = replacements.getElementAsString(i);
+                final int patternLength = separatorPattern.length();
+                final StringBuffer replaced = new StringBuffer();
+                int previousStart = 0;
+                int beginIndex = elementNormalized.indexOf(patternNormalized);
+                while (beginIndex != -1) {
+                  replaced.append(element.substring(previousStart, beginIndex));
+                  replaced.append(replacement_i);
+                  previousStart = beginIndex + patternLength;
+                  beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
+                }
+                replaced.append(element.substring(previousStart));
+                result[j] = replaced.toString();
+              }
+            }
+          }
+        }
+        return new StringArrayVector(result);
+      }
+    }
+  }
+  public static SEXP stri_replace_first_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_fixed) {
+    return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.FIRST);
+  }
+  public static SEXP stri_replace_last_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_fixed) {
+    return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.LAST);
+  }
+  public static SEXP stri_replace_all_coll(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_collator) {
+    throw new EvalException("TODO");
+  }
+  public static SEXP stri_replace_first_coll(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_collator) {
+    throw new EvalException("TODO");
+  }
+  public static SEXP stri_replace_last_coll(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_collator) {
+    throw new EvalException("TODO");
+  }
+  public static SEXP stri_replace_all_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_regex) {
+    final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
+    if (is_vectorized) {
+      return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.ALL);
+    } else {
+      final int length = str.length();
+      if (length <= 0) {
+        return StringVector.EMPTY;
+      } else {
+        final int pattern_n = pattern.length();
+        final int replacement_n = replacement.length();
+        if (pattern_n < replacement_n || pattern_n <= 0 || replacement_n <= 0) {
+          throw new EvalException("vector length not consistent with other arguments");
+        }
+        if (pattern_n % replacement_n != 0) {
+          Native.currentContext().warn("longer object length is not a multiple of shorter object length");
+        }
+        if (pattern_n == 1) {// this will be much faster:
+          return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.ALL);
+        }
+        final int flags = __regex_flags(opts_regex);
+        final String[] result = new String[length];
+        final AtomicVector strings = (AtomicVector) str;
+        final AtomicVector patterns = (AtomicVector) pattern;
+        final ListVector replacements = __ensure_length(pattern_n, replacement);
+        for (int i = 0; i < pattern_n; i++) {
+          if (patterns.isElementNA(i)) {
+            return __string_vector_NA(length);
+          } else if (patterns.getElementAsString(i).length() <= 0) {
+            Native.currentContext().warn("empty search patterns are not supported");
+            return __string_vector_NA(length);
+          }
+          for (int j = 0; j < length; j++) {
+            if (strings.isElementNA(j)) {
+              result[j] = StringVector.NA;
+            } else {
+              final String element = strings.getElementAsString(j);
+              final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+              final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+              if (replacements.isElementNA(i)) {
+                if (matcher.find()) {
+                  result[j] = StringVector.NA;
+                } else {
+                  result[j] = element;
+                }
+              } else {
+                matcher.replaceAll(replacements.getElementAsString(i));
+              }
+            }
+          }
+        }
+        return new StringArrayVector(result);
+      }
+    }
+  }
+  public static SEXP stri_replace_first_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex) {
+    return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.FIRST);
+  }
+  public static SEXP stri_replace_last_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex) {
+    return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.LAST);
+  }
+  public static SEXP stri_replace_all_charclass(SEXP str, SEXP pattern, SEXP replacement, SEXP merge, SEXP vectorize_all) {
+    final boolean is_merging = ((AtomicVector) merge).getElementAsLogical(0).toBooleanStrict();
+    final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
+    if (is_vectorized) {
+      return __replace_all_charclass_vectorized(str, pattern, replacement, is_merging);
+    } else {
+      final int length = str.length();
+      if (length <= 0) {
+        return StringVector.EMPTY;
+      } else {
+        final int pattern_n = pattern.length();
+        final int replacement_n = replacement.length();
+        if (pattern_n < replacement_n || pattern_n <= 0 || replacement_n <= 0) {
+          throw new EvalException("vector length not consistent with other arguments");
+        }
+        if (pattern_n % replacement_n != 0) {
+          Native.currentContext().warn("longer object length is not a multiple of shorter object length");
+        }
+        if (pattern_n == 1) {// this will be much faster:
+          return __replace_all_charclass_vectorized(str, pattern, replacement, is_merging);
+        }
+        final String[] result = new String[length];
+        final AtomicVector strings = (AtomicVector) str;
+        final AtomicVector patterns = (AtomicVector) pattern;
+        final ListVector replacements = __ensure_length(pattern_n, replacement);
+        for (int i = 0; i < pattern_n; i++) {
+          if (patterns.isElementNA(i)) {
+            return __string_vector_NA(length);
+          }
+          for (int j = 0; j < length; j++) {
+            if (strings.isElementNA(j)) {
+              result[j] = StringVector.NA;
+            } else {
+              final String element = strings.getElementAsString(j);
+              final String pattern_i = __normalize_binary_properties(patterns.getElementAsString(i));
+              if (replacements.isElementNA(i)) {
+                if (Pattern.compile(pattern_i).matcher(element).find()) {
+                  result[j] = StringVector.NA;
+                } else {
+                  result[j] = element;
+                }
+              } else {
+                final String appliedPattern = (is_merging) ? "(?:" + pattern_i + ")+" : pattern_i;
+                result[j] = element.replaceAll(appliedPattern, replacements.getElementAsString(i));
+              }
+            }
+          }
+        }
+        return new StringArrayVector(result);
+      }
+    }
+  }
+  public static SEXP stri_replace_first_charclass(SEXP str, SEXP pattern, SEXP replacement) {
+    return __replace_firstlast_charclass(str, pattern, replacement, true);
+  }
+  public static SEXP stri_replace_last_charclass(SEXP str, SEXP pattern, SEXP replacement) {
+    return __replace_firstlast_charclass(str, pattern, replacement, false);
+  }
   public static SEXP stri_reverse(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_split_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_split_charclass(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify) {
@@ -309,7 +521,7 @@ public class stringi {
   public static SEXP stri_split_fixed(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_fixed) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, false);
-    final boolean is_insensitive = flags == Pattern.CASE_INSENSITIVE;
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
     final int length = __max_length(str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
     final ListVector strings = __ensure_length(length, str);
@@ -353,8 +565,8 @@ public class stringi {
               final String separatorPattern = patterns.getElementAsString(i);
               final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
               final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
-              int previousStart = 0;
               final int patternLength = separatorPattern.length();
+              int previousStart = 0;
               for (int k = 0; previousStart < element.length() && k < depth;) {
                 final int beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
                 if (-1 < beginIndex) {
@@ -525,6 +737,19 @@ public class stringi {
   public static SEXP stri_width(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_wrap(SEXP s1) { throw new EvalException("TODO"); }
 
+  private enum ReplaceType {
+    ALL, FIRST, LAST;
+    boolean isAll() {
+      return ALL.equals(this);
+    }
+    boolean isFirst() {
+      return FIRST.equals(this);
+    }
+    boolean isLast() {
+      return LAST.equals(this);
+    }
+  }
+
   private static int __max_length(SEXP argument, SEXP... arguments) {
     int length = argument.length();
     for (SEXP arg: arguments) {
@@ -687,5 +912,156 @@ public class stringi {
       final String filler = first_simplify.equals(Logical.NA) ? StringVector.NA : "";
       return stri_list2matrix(resultSexp, LogicalVector.valueOf(true), StringVector.valueOf(filler), IntVector.valueOf(required_depth));
     }
+  }
+  private static SEXP __string_vector_NA(final int length) {
+    final StringVector.Builder builder = StringVector.newBuilder();
+    for (int j = 0; j < length; j++) {
+      builder.addNA();
+    }
+    return builder.build();
+  }
+  private static SEXP __replace_firstlast_charclass(SEXP str, SEXP pattern, SEXP replacement, ReplaceType replaces) {
+    final int length = __max_length(str, pattern, replacement);
+    final String[] result = new String[length];
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector replacements = __ensure_length(length, replacement);
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || replacements.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        if (!separatorPattern.equals(lastPattern)) {
+          lastPattern = separatorPattern;
+          matcher = new UnicodeSet(separatorPattern);
+        }
+        int nomatch = -1;
+        int cut = -1;
+        if (replaces.isFirst()) {
+          nomatch = element.length();
+          cut = matcher.span(element, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        } else if (replaces.isLast()) {
+          nomatch = 0;
+          cut = matcher.spanBack(element, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        }
+        if (cut == nomatch) {
+          result[i] = element;
+        } else {
+          result[i] = element.substring(0, cut) + replacements.getElementAsString(i) + element.substring(cut + 1);
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __replace_all_charclass_vectorized(SEXP str, SEXP pattern, SEXP replacement, boolean is_merging) {
+    final int length = __max_length(str, pattern, replacement);
+    final String[] result = new String[length];
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector replacements = __ensure_length(length, replacement);
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || replacements.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String patterni = (is_merging) ? "(?:" + patterns.getElementAsString(i) + ")+" : patterns.getElementAsString(i);
+        result[i] = strings.getElementAsString(i).replaceAll(__normalize_binary_properties(patterni), replacements.getElementAsString(i));
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __replace_all_fixed_vectorized(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_fixed, ReplaceType replaces) {
+    final int flags = __fixed_flags(opts_fixed, false);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final int length = __max_length(str, pattern, replacement);
+    final String[] result = new String[length];
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector replacements = __ensure_length(length, replacement);
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        if (element.length() <= 0) {
+          result[i] = "";
+        } else {
+          final String separatorPattern = patterns.getElementAsString(i);
+          final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+          final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+          if (replacements.isElementNA(i)) {
+            if (-1 < elementNormalized.indexOf(patternNormalized)) {
+              result[i] = StringVector.NA;
+            } else {
+              result[i] = element;
+            }
+          } else {
+            final String replacement_i = replacements.getElementAsString(i);
+            final int patternLength = separatorPattern.length();
+            final StringBuffer replaced = new StringBuffer();
+            int previousStart = 0;
+            int beginIndex = (replaces.isLast()) ? elementNormalized.lastIndexOf(patternNormalized) : elementNormalized.indexOf(patternNormalized);
+            while (replaces.isAll() && beginIndex != -1) {
+              replaced.append(element.substring(previousStart, beginIndex));
+              replaced.append(replacement_i);
+              previousStart = beginIndex + patternLength;
+              beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
+            }
+            replaced.append(element.substring(previousStart));
+            result[i] = replaced.toString();
+          }
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __replace_all_regex_vectorized(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex, ReplaceType replaces) {
+    final int flags = __regex_flags(opts_regex);
+    final int length = __max_length(str, pattern, replacement);
+    final String[] result = new String[length];
+    final ListVector strings = __ensure_length(length, str);
+    final ListVector patterns = __ensure_length(length, pattern);
+    final ListVector replacements = __ensure_length(length, replacement);
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || replacements.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        final String replacement_i = replacements.getElementAsString(i);
+        final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+        if (replaces.isAll()) {
+          result[i] = matcher.replaceAll(replacement_i);
+        } else if (replaces.isFirst()) {
+          result[i] = matcher.replaceFirst(replacement_i);
+        } else if (replaces.isLast()) {
+          int start = -1;
+          int end = -1;
+          while (matcher.find()) {
+            start = matcher.start();
+            end = matcher.end();
+          }
+          if (start < 0 || end < 0) {
+            result[i] = element;
+          } else {
+            result[i] = element.substring(0, start) + replacement_i + element.substring(end);
+          }
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
   }
 }
