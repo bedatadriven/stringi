@@ -12,6 +12,7 @@ import org.renjin.primitives.Native;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
 import org.renjin.sexp.AtomicVector;
+import org.renjin.sexp.DoubleVector;
 import org.renjin.sexp.IntArrayVector;
 import org.renjin.sexp.IntVector;
 import org.renjin.sexp.ListVector;
@@ -148,8 +149,8 @@ public class stringi {
     }
 
     final int length = __recycling_rule(true, s1, s2);
-    final StringVector e1 = __ensure_length(length, __prepare_string(s1));
-    final StringVector e2 = __ensure_length(length, __prepare_string(s2));
+    final StringVector e1 = __ensure_length(length, stri_prepare_arg_string(s1, StringVector.valueOf("e1")));
+    final StringVector e2 = __ensure_length(length, stri_prepare_arg_string(s2, StringVector.valueOf("e2")));
     final String[] result = new String[length];
 
     for (int i = 0; i < length; i++) {
@@ -237,11 +238,31 @@ public class stringi {
   public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_pad(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_prepare_arg_string(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static StringVector stri_prepare_arg_string(SEXP s, SEXP name) {
+    if (s instanceof StringVector) {
+      return (StringVector) s;
+    }
+    throw new EvalException("TODO");
+  }
   public static SEXP stri_prepare_arg_POSIXct(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_prepare_arg_double(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_prepare_arg_integer(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_prepare_arg_logical(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static DoubleVector stri_prepare_arg_double(SEXP s, SEXP name) {
+    if (s instanceof DoubleVector) {
+      return (DoubleVector) s;
+    }
+    throw new EvalException("TODO");
+  }
+  public static IntVector stri_prepare_arg_integer(SEXP s, SEXP name) {
+    if (s instanceof IntVector) {
+      return (IntVector) s;
+    }
+    throw new EvalException("TODO");
+  }
+  public static LogicalVector stri_prepare_arg_logical(SEXP s, SEXP name) {
+    if (s instanceof LogicalVector) {
+      return (LogicalVector) s;
+    }
+    throw new EvalException("TODO");
+  }
   public static SEXP stri_prepare_arg_raw(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_string_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_double_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -273,9 +294,9 @@ public class stringi {
         final int flags = __fixed_flags(opts_fixed, false);
         final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
         final String[] result = new String[length];
-        final StringVector strings = __prepare_string(str);
-        final StringVector patterns = __prepare_string(pattern);
-        final StringVector replacements = __ensure_length(pattern_n, __prepare_string(replacement));
+        final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+        final StringVector patterns = stri_prepare_arg_string(pattern, StringVector.valueOf("pattern"));
+        final StringVector replacements = __ensure_length(pattern_n, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
         for (int i = 0; i < pattern_n; i++) {
           if (patterns.isElementNA(i)) {
             return __string_vector_NA(length);
@@ -356,9 +377,9 @@ public class stringi {
         }
         final int flags = __regex_flags(opts_regex);
         final String[] result = new String[length];
-        final StringVector strings = __prepare_string(str);
-        final StringVector patterns = __prepare_string(pattern);
-        final StringVector replacements = __ensure_length(pattern_n, __prepare_string(replacement));
+        final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+        final StringVector patterns = stri_prepare_arg_string(pattern, StringVector.valueOf("pattern"));
+        final StringVector replacements = __ensure_length(pattern_n, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
         for (int i = 0; i < pattern_n; i++) {
           if (patterns.isElementNA(i)) {
             return __string_vector_NA(length);
@@ -417,9 +438,9 @@ public class stringi {
           return __replace_all_charclass_vectorized(str, pattern, replacement, is_merging);
         }
         final String[] result = new String[length];
-        final StringVector strings = __prepare_string(str);
-        final StringVector patterns = __prepare_string(pattern);
-        final StringVector replacements = __ensure_length(pattern_n, __prepare_string(replacement));
+        final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+        final StringVector patterns = stri_prepare_arg_string(pattern, StringVector.valueOf("pattern"));
+        final StringVector replacements = __ensure_length(pattern_n, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
         for (int i = 0; i < pattern_n; i++) {
           if (patterns.isElementNA(i)) {
             return __string_vector_NA(length);
@@ -459,10 +480,10 @@ public class stringi {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final IntVector ns = __ensure_length(length, __prepare_int(n));
-    final LogicalVector omits = __ensure_length(length, __prepare_logical(omit_empty));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final IntVector ns = __ensure_length(length, stri_prepare_arg_integer(n, StringVector.valueOf("n")));
+    final LogicalVector omits = __ensure_length(length, stri_prepare_arg_logical(omit_empty, StringVector.valueOf("omit_empty")));
 
     String lastPattern = null;
     UnicodeSet matcher = null;
@@ -527,10 +548,10 @@ public class stringi {
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
     final int length = __recycling_rule(true, str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final IntVector ns = __ensure_length(length, __prepare_int(n));
-    final LogicalVector omits = __ensure_length(length, __prepare_logical(omit_empty));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final IntVector ns = __ensure_length(length, stri_prepare_arg_integer(n, StringVector.valueOf("n")));
+    final LogicalVector omits = __ensure_length(length, stri_prepare_arg_logical(omit_empty, StringVector.valueOf("omit_empty")));
 
     for (int i = 0; i < length; i++) {
       if (ns.isElementNA(i)) {
@@ -615,10 +636,10 @@ public class stringi {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern, n, omit_empty);
     final StringVector[] result = new StringVector[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final IntVector ns = __ensure_length(length, __prepare_int(n));
-    final LogicalVector omits = __ensure_length(length, __prepare_logical(omit_empty));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final IntVector ns = __ensure_length(length, stri_prepare_arg_integer(n, StringVector.valueOf("n")));
+    final LogicalVector omits = __ensure_length(length, stri_prepare_arg_logical(omit_empty, StringVector.valueOf("omit_empty")));
 
     for (int i = 0; i < length; i++) {
       if (ns.isElementNA(i)) {
@@ -807,29 +828,11 @@ public class stringi {
       return new RecyclingLogicalVector(length, (LogicalVector) exp);
     }
   }
-  private static StringVector __prepare_string(SEXP s) {
-    if (s instanceof StringVector) {
-      return (StringVector) s;
-    }
-    throw new EvalException("TODO");
-  }
-  private static IntVector __prepare_int(SEXP s) {
-    if (s instanceof IntVector) {
-      return (IntVector) s;
-    }
-    throw new EvalException("TODO");
-  }
-  private static LogicalVector __prepare_logical(SEXP s) {
-    if (s instanceof LogicalVector) {
-      return (LogicalVector) s;
-    }
-    throw new EvalException("TODO");
-  }
   private static SEXP __trim_left_right(SEXP str, SEXP pattern, TrimOption side) {
     final int length = __recycling_rule(true, str, pattern);
     final String[] result = new String[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
 
     String lastPattern = null;
     UnicodeSetSpanner matcher = null;
@@ -980,9 +983,9 @@ public class stringi {
   private static SEXP __replace_firstlast_charclass(SEXP str, SEXP pattern, SEXP replacement, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern, replacement);
     final String[] result = new String[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final StringVector replacements = __ensure_length(length, __prepare_string(replacement));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final StringVector replacements = __ensure_length(length, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
 
     String lastPattern = null;
     UnicodeSet matcher = null;
@@ -1018,9 +1021,9 @@ public class stringi {
   private static SEXP __replace_all_charclass_vectorized(SEXP str, SEXP pattern, SEXP replacement, boolean is_merging) {
     final int length = __recycling_rule(true, str, pattern, replacement);
     final String[] result = new String[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final StringVector replacements = __ensure_length(length, __prepare_string(replacement));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final StringVector replacements = __ensure_length(length, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
 
     for (int i = 0; i < length; i++) {
       if (strings.isElementNA(i) || patterns.isElementNA(i) || replacements.isElementNA(i)) {
@@ -1038,9 +1041,9 @@ public class stringi {
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
     final int length = __recycling_rule(true, str, pattern, replacement);
     final String[] result = new String[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final StringVector replacements = __ensure_length(length, __prepare_string(replacement));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final StringVector replacements = __ensure_length(length, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
 
     for (int i = 0; i < length; i++) {
       if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
@@ -1087,9 +1090,9 @@ public class stringi {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern, replacement);
     final String[] result = new String[length];
-    final StringVector strings = __ensure_length(length, __prepare_string(str));
-    final StringVector patterns = __ensure_length(length, __prepare_string(pattern));
-    final StringVector replacements = __ensure_length(length, __prepare_string(replacement));
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, StringVector.valueOf("str")));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, StringVector.valueOf("pattern")));
+    final StringVector replacements = __ensure_length(length, stri_prepare_arg_string(replacement, StringVector.valueOf("replacement")));
 
     for (int i = 0; i < length; i++) {
       if (strings.isElementNA(i) || patterns.isElementNA(i) || replacements.isElementNA(i)) {
