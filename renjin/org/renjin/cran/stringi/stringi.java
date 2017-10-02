@@ -3,7 +3,9 @@ package org.renjin.cran.stringi;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
+import java.text.Normalizer;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,12 +13,14 @@ import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
+import org.renjin.repackaged.guava.base.Utf8;
 import org.renjin.sexp.AtomicVector;
 import org.renjin.sexp.DoubleVector;
 import org.renjin.sexp.IntArrayVector;
 import org.renjin.sexp.IntVector;
 import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
+import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
 import org.renjin.sexp.RecyclingIntVector;
 import org.renjin.sexp.RecyclingLogicalVector;
@@ -26,6 +30,12 @@ import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Symbols;
 
+import com.ibm.icu.lang.UCharacter;
+import com.ibm.icu.lang.UCharacter.EastAsianWidth;
+import com.ibm.icu.lang.UCharacter.HangulSyllableType;
+import com.ibm.icu.lang.UProperty;
+import com.ibm.icu.text.BreakIterator;
+import com.ibm.icu.text.RuleBasedBreakIterator;
 import com.ibm.icu.text.UnicodeSet;
 import com.ibm.icu.text.UnicodeSetSpanner;
 import com.ibm.icu.text.UnicodeSetSpanner.TrimOption;
@@ -62,7 +72,28 @@ public class stringi {
   public static SEXP stri_cmp_ge(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_equiv(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_nequiv(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_count_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_boundaries(SEXP str, SEXP opts_brkiter) {
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+    final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
+    final int length = str.length();
+    final int[] result = new int[length];
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = IntVector.NA;
+      } else {
+        brkiter.setText(strings.getElementAsString(i));
+        brkiter.first();
+        int count = 0;
+        while (BreakIterator.DONE < brkiter.next()) {
+          count++;
+        }
+        result[i] = count;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_count_charclass(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_count_fixed(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_count_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
@@ -137,7 +168,21 @@ public class stringi {
   public static SEXP stri_extract_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_flatten(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_info(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
-  public static SEXP stri_isempty(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_isempty(SEXP str) {
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+    final int length = strings.length();
+    final Logical[] result = new Logical[length];
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        result[i] = Logical.valueOf(strings.getElementAsString(i).isEmpty());
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
   public static SEXP stri_join(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_join_list(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_join2(SEXP s1, SEXP s2) {
@@ -163,7 +208,21 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
-  public static SEXP stri_length(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_length(SEXP str) {
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+    final int length = strings.length();
+    final int[] result = new int[length];
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = IntVector.NA;
+      } else {
+        result[i] = strings.getElementAsString(i).length();
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_list2matrix(SEXP x, SEXP byrow, SEXP fill, SEXP n_min) {
     final boolean bycolumn = !((AtomicVector) byrow).getElementAsLogical(0).toBooleanStrict();
     final String filler = ((AtomicVector) fill).getElementAsString(0);
@@ -234,7 +293,21 @@ public class stringi {
   public static SEXP stri_match_first_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_match_last_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_match_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_numbytes(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_numbytes(SEXP str) {
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+    final int length = strings.length();
+    final int[] result = new int[length];
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = IntVector.NA;
+      } else {
+        result[i] = Utf8.encodedLength(strings.getElementAsString(i));
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_pad(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
@@ -732,17 +805,33 @@ public class stringi {
   public static SEXP stri_timezone_set(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_timezone_info(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_char(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_isnfc(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_isnfd(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_isnfkc(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_isnfkd(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_isnfc(SEXP str) {
+    return __trans_isnf(str, Normalizer.Form.NFC);
+  }
+  public static SEXP stri_trans_isnfd(SEXP str) {
+    return __trans_isnf(str, Normalizer.Form.NFD);
+  }
+  public static SEXP stri_trans_isnfkc(SEXP str) {
+    return __trans_isnf(str, Normalizer.Form.NFKC);
+  }
+  public static SEXP stri_trans_isnfkd(SEXP str) {
+    return __trans_isnf(str, Normalizer.Form.NFKD);
+  }
   public static SEXP stri_trans_isnfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_general(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_nfc(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_nfd(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_nfkc(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_nfkd(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_nfc(SEXP str) {
+    return __trans_nf(str, Normalizer.Form.NFC);
+  }
+  public static SEXP stri_trans_nfd(SEXP str) {
+    return __trans_nf(str, Normalizer.Form.NFD);
+  }
+  public static SEXP stri_trans_nfkc(SEXP str) {
+    return __trans_nf(str, Normalizer.Form.NFKC);
+  }
+  public static SEXP stri_trans_nfkd(SEXP str) {
+    return __trans_nf(str, Normalizer.Form.NFKD);
+  }
   public static SEXP stri_trans_nfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_totitle(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_tolower(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -758,7 +847,22 @@ public class stringi {
   }
   public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_unique(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_width(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_width(SEXP str) {
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+    final int length = strings.length();
+    final int[] result = new int[length];
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = IntVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        result[i] = __width_string(element);
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_wrap(SEXP s1) { throw new EvalException("TODO"); }
 
   private enum ReplaceType {
@@ -1123,5 +1227,106 @@ public class stringi {
     }
 
     return new StringArrayVector(result);
+  }
+  private static int __width_string(String element) {
+    int width = 0;
+    for (int j = 0; j < element.length(); /* j + charCount */) {
+      final int c = element.codePointAt(j);
+      width += __width_char(c);
+      j += Character.charCount(c);
+    }
+    return width;
+  }
+  private static int __width_char(int codePoint) {
+    if (codePoint == 0x00AD)
+      return 1; /* SOFT HYPHEN */
+    if (codePoint == 0x200B)
+      return 0; /* ZERO WIDTH SPACE */
+
+    /* GC: Me, Mn, Cf, Cc -> width = 0 */
+    if (0 < (Character.getType(codePoint) & (Character.NON_SPACING_MARK | Character.ENCLOSING_MARK | Character.FORMAT | Character.CONTROL)))
+      return 0;
+
+    /* Hangul Jamo medial vowels and final consonants have width 0 */
+    int hangul = UCharacter.getIntPropertyValue(codePoint, UProperty.HANGUL_SYLLABLE_TYPE);
+    if (hangul == HangulSyllableType.VOWEL_JAMO || hangul == HangulSyllableType.TRAILING_JAMO)
+      return 0;
+
+    /*
+     * Characters with the \code{UCHAR_EAST_ASIAN_WIDTH} enumerable property equal to \code{U_EA_FULLWIDTH} or \code{U_EA_WIDE} are of width 2.
+     */
+    int width = UCharacter.getIntPropertyValue(codePoint, UProperty.EAST_ASIAN_WIDTH);
+    if (width == EastAsianWidth.FULLWIDTH || width == EastAsianWidth.WIDE)
+      return 2;
+
+    /* any other characters have width 1 */
+    return 1;
+  }
+  private static SEXP __trans_isnf(SEXP str, Normalizer.Form form) {
+    final int length = str.length();
+    final Logical[] result = new Logical[length];
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        result[i] = Logical.valueOf(Normalizer.isNormalized(strings.getElementAsString(i), form));
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+  private static SEXP __trans_nf(SEXP str, Normalizer.Form form) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, StringVector.valueOf("str"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        result[i] = Normalizer.normalize(strings.getElementAsString(i), form);
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static BreakIterator __break_iterator_for_type(String breakType, Locale locale) {
+    if ("character".equals(breakType)) {
+      return BreakIterator .getCharacterInstance(locale);
+    } else if ("line_break".equals(breakType)) {
+      return BreakIterator.getLineInstance(locale);
+    } else if ("sentence".equals(breakType)) {
+      return BreakIterator.getSentenceInstance(locale);
+    } else if ("title".equals(breakType)) {
+      return BreakIterator.getTitleInstance(locale);
+    } else if ("word".equals(breakType)) {
+      return BreakIterator.getWordInstance(locale);
+    }
+    throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
+  }
+  private static BreakIterator __open_break_iterator(SEXP opts_brkiter, String defaultType) {
+    if (opts_brkiter == null) {
+      // use default locale
+      // use default type
+      // use no skip rules
+      return __break_iterator_for_type(defaultType, Locale.getDefault());
+    } else if (opts_brkiter instanceof ListVector) {
+      final ListVector options = (ListVector) opts_brkiter;
+      final int indexType = options.getIndexByName("type");
+      final String breakType = (-1 < indexType) ? options.getElementAsString(indexType) : defaultType;
+      final String knownTypes = "|character|line_break|sentence|title|word|";
+      if (-1 < knownTypes.indexOf(breakType)) {
+        final int indexLocale = options.getIndexByName("locale");
+        final Locale locale = (-1 < indexLocale) ? Locale.forLanguageTag(options.getElementAsString(indexLocale).trim()) : Locale.getDefault();
+        return __break_iterator_for_type(breakType, locale);
+      } else {
+        // FIXME handle skip_* rules
+        return new RuleBasedBreakIterator(breakType);
+      }
+    } else {
+      throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
+    }
   }
 }

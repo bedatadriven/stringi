@@ -44,6 +44,11 @@
       <version>${renjin.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.renjin</groupId>
+      <artifactId>renjin-guava</artifactId>
+      <version>17.0b</version>
+    </dependency>
+    <dependency>
       <groupId>com.ibm.icu</groupId>
       <artifactId>icu4j</artifactId>
       <version>59.1</version>
