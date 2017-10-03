@@ -84,14 +84,14 @@
 #'
 #' @examples
 #' test <- "The\u00a0above-mentioned    features are very useful. Warm thanks to their developers."
-#' stri_locate_all_boundaries(test, type="line")
-#' stri_locate_all_boundaries(test, type="word")
-#' stri_locate_all_boundaries(test, type="sentence")
-#' stri_locate_all_boundaries(test, type="character")
+#' stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="line_break"))
+#' stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="word"))
+#' stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="sentence"))
+#' stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="character"))
 #' stri_locate_all_words(test)
 #'
 #' stri_extract_all_boundaries("Mr. Jones and Mrs. Brown are very happy.
-#' So am I, Prof. Smith.", type="sentence", locale="en_US@ss=standard") # ICU >= 56 only
+#' So am I, Prof. Smith.", opts_brkiter=stri_opts_brkiter(type="sentence", locale="en_US@ss=standard")) # ICU >= 56 only
 #'
 #' @export
 #' @family search_locate
