@@ -16,6 +16,7 @@ import org.renjin.sexp.IntArrayVector;
 import org.renjin.sexp.IntVector;
 import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
+import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
@@ -73,7 +74,24 @@ public class stringi {
   public static SEXP stri_detect_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_detect_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_detect_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_detect_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_detect_regex(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex) { 
+    int strLength = str.length();
+    int patLength = pattern.length();
+    LogicalArrayVector.Builder result = new LogicalArrayVector.Builder(strLength);
+    int j = 0;
+    for(int i = 0; i < strLength; ++i) {
+      if(j == patLength) {
+        j = 0;
+      }
+      String currentString = ((StringVector) str).getElementAsString(i);
+      String currentPattern = ((StringVector) pattern).getElementAsString(j);
+      Pattern compiledPattern = Pattern.compile(currentPattern);
+      Matcher matcher = compiledPattern.matcher(currentString);
+      result.set(i, matcher.find());
+      j++;
+    }
+    return result.build();
+  }
   public static SEXP stri_dup(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
