@@ -124,7 +124,43 @@ public class stringi {
   public static SEXP stri_enc_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_mark(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_set(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_enc_fromutf32(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_enc_fromutf32(SEXP vec) {
+    final int length = vec.length();
+    final String[] result = new String[length];
+    final ListVector vectors = (ListVector) vec; // FIXME maybe implement stri_prepare_arg_list_integer
+
+    for (int i = 0; i < length; i++) {
+      if (vectors.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final DoubleVector element = (DoubleVector) vectors.getElementAsSEXP(i);
+        final int size = element.length();
+        final StringBuffer sb = new StringBuffer(size);
+        boolean foundError = false;
+        int codepoint = 0;
+        for (int k = 0; !foundError && k < size; k++) {
+          codepoint = element.getElementAsInt(k);
+          if (codepoint == 0) {
+            foundError = true;
+          } else {
+            try {
+              sb.appendCodePoint(codepoint);
+            } catch (IllegalArgumentException e) {
+              foundError = true;
+            }
+          }
+        }
+        if (foundError) {
+          Native.currentContext().warn(String.format("invalid Unicode codepoint \\U%08.8x", codepoint));
+          result[i] = StringVector.NA;
+        } else {
+          result[i] = sb.toString();
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
     // in Java, the invalid code points would result in an exception at the time of reading the string
@@ -1231,33 +1267,39 @@ public class stringi {
   private static int __width_string(String element) {
     int width = 0;
     for (int j = 0; j < element.length(); /* j + charCount */) {
-      final int c = element.codePointAt(j);
-      width += __width_char(c);
-      j += Character.charCount(c);
+      final int cp = element.codePointAt(j);
+      width += __width_char(cp);
+      j += Character.charCount(cp);
     }
     return width;
   }
   private static int __width_char(int codePoint) {
-    if (codePoint == 0x00AD)
+    if (codePoint == 0x00AD) {
       return 1; /* SOFT HYPHEN */
-    if (codePoint == 0x200B)
+    }
+    if (codePoint == 0x200B) {
       return 0; /* ZERO WIDTH SPACE */
+    }
 
     /* GC: Me, Mn, Cf, Cc -> width = 0 */
-    if (0 < (Character.getType(codePoint) & (Character.NON_SPACING_MARK | Character.ENCLOSING_MARK | Character.FORMAT | Character.CONTROL)))
+    final int category = Character.getType(codePoint);
+    if (category == Character.NON_SPACING_MARK | category == Character.ENCLOSING_MARK | category == Character.FORMAT | category == Character.CONTROL) {
       return 0;
+    }
 
     /* Hangul Jamo medial vowels and final consonants have width 0 */
     int hangul = UCharacter.getIntPropertyValue(codePoint, UProperty.HANGUL_SYLLABLE_TYPE);
-    if (hangul == HangulSyllableType.VOWEL_JAMO || hangul == HangulSyllableType.TRAILING_JAMO)
+    if (hangul == HangulSyllableType.VOWEL_JAMO || hangul == HangulSyllableType.TRAILING_JAMO) {
       return 0;
+    }
 
     /*
      * Characters with the \code{UCHAR_EAST_ASIAN_WIDTH} enumerable property equal to \code{U_EA_FULLWIDTH} or \code{U_EA_WIDE} are of width 2.
      */
     int width = UCharacter.getIntPropertyValue(codePoint, UProperty.EAST_ASIAN_WIDTH);
-    if (width == EastAsianWidth.FULLWIDTH || width == EastAsianWidth.WIDE)
+    if (width == EastAsianWidth.FULLWIDTH || width == EastAsianWidth.WIDE) {
       return 2;
+    }
 
     /* any other characters have width 1 */
     return 1;
