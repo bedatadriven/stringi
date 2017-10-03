@@ -241,6 +241,8 @@ public class stringi {
   public static StringVector stri_prepare_arg_string(SEXP s, SEXP name) {
     if (s instanceof StringVector) {
       return (StringVector) s;
+    } else if (s.length() == 1 && Logical.NA.equals(s.asLogical())) {
+      return StringVector.valueOf(StringVector.NA);
     }
     throw new EvalException("TODO");
   }
