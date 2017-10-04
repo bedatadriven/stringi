@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import org.renjin.eval.EvalException;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
+import org.renjin.sexp.AbstractAtomicVector;
 import org.renjin.sexp.ExpressionVector;
 import org.renjin.sexp.IntArrayVector;
 import org.renjin.sexp.IntVector;
@@ -22,6 +23,7 @@ import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Symbols;
+import org.renjin.sexp.Null;
 
 import com.ibm.icu.text.UnicodeSet;
 import com.ibm.icu.text.UnicodeSetSpanner;
@@ -76,19 +78,45 @@ public class stringi {
   public static SEXP stri_detect_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_detect_regex(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex) { 
     int strLength = str.length();
-    int patLength = pattern.length();
+    int patternLength = pattern.length();
     LogicalArrayVector.Builder result = new LogicalArrayVector.Builder(strLength);
-    int j = 0;
-    for(int i = 0; i < strLength; ++i) {
-      if(j == patLength) {
+    if(strLength == 0 || patternLength == 0) {
+      return LogicalVector.EMPTY;
+    }
+
+    int idx = 0;
+    for(int i = 0, j = 0; (patternLength > strLength && j < patternLength) || (patternLength < strLength && i < strLength); ++i, ++j, ++idx) {
+      if(patternLength < strLength && j == patternLength) {
         j = 0;
       }
-      String currentString = ((StringVector) str).getElementAsString(i);
-      String currentPattern = ((StringVector) pattern).getElementAsString(j);
-      Pattern compiledPattern = Pattern.compile(currentPattern);
-      Matcher matcher = compiledPattern.matcher(currentString);
-      result.set(i, matcher.find());
-      j++;
+      if(patternLength > strLength && i == strLength) {
+        i = 0;
+      }
+      SEXP strElement = str.getElementAsSEXP(i);
+      SEXP patternElement = pattern.getElementAsSEXP(j);
+      String currentString;
+      if(strElement instanceof LogicalVector) {
+        currentString = ((LogicalVector)strElement).toString();
+      } else {
+        currentString = ((AbstractAtomicVector) str).getElementAsString(i);
+      }
+      String currentPattern;
+      if(patternElement instanceof LogicalVector) {
+        currentPattern = ((LogicalVector)patternElement).toString();
+      } else {
+        currentPattern = ((AbstractAtomicVector) pattern).getElementAsString(j);
+      }
+      
+      if(  (str instanceof LogicalArrayVector && LogicalVector.isNA(((LogicalArrayVector) str).getElementAsRawLogical(i))) 
+        || (pattern instanceof LogicalArrayVector && LogicalVector.isNA(((LogicalArrayVector) pattern).getElementAsRawLogical(j)))
+        || (str instanceof StringVector && StringVector.isNA(currentString))
+        || (pattern instanceof StringVector && StringVector.isNA(currentPattern)) ) {
+        result.set(idx, LogicalVector.NA);
+      } else {
+        Pattern compiledPattern = Pattern.compile(currentPattern);
+        Matcher matcher = compiledPattern.matcher(currentString);
+        result.set(idx, matcher.find());
+      }
     }
     return result.build();
   }
