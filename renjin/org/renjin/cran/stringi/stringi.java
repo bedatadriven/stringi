@@ -11,6 +11,9 @@ import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
+import org.renjin.primitives.sequence.RepIntVector;
+import org.renjin.primitives.sequence.RepLogicalVector;
+import org.renjin.primitives.sequence.RepStringVector;
 import org.renjin.sexp.AtomicVector;
 import org.renjin.sexp.DoubleVector;
 import org.renjin.sexp.IntArrayVector;
@@ -19,9 +22,6 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
 import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
-import org.renjin.sexp.RecyclingIntVector;
-import org.renjin.sexp.RecyclingLogicalVector;
-import org.renjin.sexp.RecyclingStringVector;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
@@ -891,7 +891,7 @@ public class stringi {
     if (length == expLength) {
       return exp;
     } else {
-      return new RecyclingStringVector(length, (StringVector) exp);
+      return new RepStringVector(exp, length, 1, exp.getAttributes());
     }
   }
   private static IntVector __ensure_length(int length, IntVector exp) {
@@ -899,7 +899,7 @@ public class stringi {
     if (length == expLength) {
       return exp;
     } else {
-      return new RecyclingIntVector(length, (IntVector) exp);
+      return new RepIntVector(exp, length, 1, exp.getAttributes());
     }
   }
   private static LogicalVector __ensure_length(int length, LogicalVector exp) {
@@ -907,7 +907,7 @@ public class stringi {
     if (length == expLength) {
       return exp;
     } else {
-      return new RecyclingLogicalVector(length, (LogicalVector) exp);
+      return new RepLogicalVector(exp, length, 1, exp.getAttributes());
     }
   }
   private static SEXP __trim_left_right(SEXP str, SEXP pattern, TrimOption side) {
