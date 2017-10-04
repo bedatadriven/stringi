@@ -115,7 +115,34 @@ public class stringi {
   public static SEXP stri_detect_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_detect_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_detect_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_dup(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_dup(SEXP str, SEXP times) {
+    final int length = __recycling_rule(true, str, times);
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final IntVector repeats = __ensure_length(length, stri_prepare_arg_integer(times, "times"));
+
+    if (length <= 0) {
+      return StringVector.EMPTY;
+    } else {
+      final String[] result = new String[length];
+      final StringBuffer sb = new StringBuffer();
+      for (int i = 0; i < length; i++) {
+        int repeat;
+        if (strings.isElementNA(i) || repeats.isElementNA(i) || (repeat = repeats.getElementAsInt(i)) < 0) {
+          result[i] = StringVector.NA;
+        } else if (repeat <= 0 || strings.getElementAsString(i).length() <= 0) {
+          result[i] = "";
+        } else {
+          final String element = strings.getElementAsString(i);
+          sb.setLength(0);
+          for (int j = 0; j < repeat; j++) {
+            sb.append(element);
+          }
+          result[i] = sb.toString();
+        }
+      }
+      return new StringArrayVector(result);
+    }
+  }
   public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_detect(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -172,7 +199,49 @@ public class stringi {
   public static SEXP stri_extract_first_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_flatten(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_flatten(SEXP str, SEXP collapse) {
+    final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
+    if (collapsers.isElementNA(0)) {
+      return __string_vector_NA(1);
+    } else if (collapsers.getElementAsString(0).length() == 0) {
+      final StringVector strings = stri_prepare_arg_string(str, "str");
+      final int length = strings.length();
+      if (length <= 0) {
+        return str;
+      } else {
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            return __string_vector_NA(1);
+          }
+        }
+        final StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < length; i++) {
+          sb.append(strings.getElementAsString(i));
+        }
+        return StringVector.valueOf(sb.toString());
+      }
+    } else {
+      final StringVector strings = stri_prepare_arg_string(str, "str");
+      final int length = strings.length();
+      if (length <= 0) {
+        return StringVector.EMPTY;
+      } else {
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            return __string_vector_NA(1);
+          }
+        }
+        final String collapser = collapsers.getElementAsString(0);
+        final StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < length; i++) {
+          sb.append(strings.getElementAsString(i));
+          sb.append(collapser);
+        }
+        sb.setLength(sb.length() - collapser.length());
+        return StringVector.valueOf(sb.toString());
+      }
+    }
+  }
   public static SEXP stri_info(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_isempty(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -200,7 +269,7 @@ public class stringi {
       if (strlist_length <= 0) {
         return StringVector.EMPTY;
       } else if (strlist_length == 1) {
-        // one vector + collapse string -- another frequently occuring case
+        // one vector + collapse string -- another frequently occurring case
         // sep is ignored here
         return stri_flatten(strlist.getElementAsSEXP(0), collapse);
       } else {
@@ -413,6 +482,8 @@ public class stringi {
       final int length = s.length();
       if (length == 1 && Logical.NA.equals(s.asLogical())) {
         return IntVector.valueOf(IntVector.NA);
+      } else if (s instanceof DoubleVector) {
+        return new RepIntVector((DoubleVector) s, length, 1, s.getAttributes());
       } else if (s instanceof StringVector) {
         return new RepIntVector((StringVector) s, length, 1, s.getAttributes());
       }
