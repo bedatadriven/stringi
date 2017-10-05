@@ -16,6 +16,7 @@ import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
+import org.renjin.primitives.sequence.RepDoubleVector;
 import org.renjin.primitives.sequence.RepIntVector;
 import org.renjin.primitives.sequence.RepLogicalVector;
 import org.renjin.primitives.sequence.RepStringVector;
@@ -28,6 +29,7 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
 import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
+import org.renjin.sexp.Null;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
@@ -192,7 +194,34 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
-  public static SEXP stri_dup(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_dup(SEXP str, SEXP times) {
+    final int length = __recycling_rule(true, str, times);
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final IntVector repeats = __ensure_length(length, stri_prepare_arg_integer(times, "times"));
+
+    if (length <= 0) {
+      return StringVector.EMPTY;
+    } else {
+      final String[] result = new String[length];
+      final StringBuffer sb = new StringBuffer();
+      for (int i = 0; i < length; i++) {
+        int repeat;
+        if (strings.isElementNA(i) || repeats.isElementNA(i) || (repeat = repeats.getElementAsInt(i)) < 0) {
+          result[i] = StringVector.NA;
+        } else if (repeat <= 0 || strings.getElementAsString(i).length() <= 0) {
+          result[i] = "";
+        } else {
+          final String element = strings.getElementAsString(i);
+          sb.setLength(0);
+          for (int j = 0; j < repeat; j++) {
+            sb.append(element);
+          }
+          result[i] = sb.toString();
+        }
+      }
+      return new StringArrayVector(result);
+    }
+  }
   public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_detect(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -285,7 +314,49 @@ public class stringi {
   public static SEXP stri_extract_first_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_flatten(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_flatten(SEXP str, SEXP collapse) {
+    final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
+    if (collapsers.isElementNA(0)) {
+      return __string_vector_NA(1);
+    } else if (collapsers.getElementAsString(0).length() == 0) {
+      final StringVector strings = stri_prepare_arg_string(str, "str");
+      final int length = strings.length();
+      if (length <= 0) {
+        return str;
+      } else {
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            return __string_vector_NA(1);
+          }
+        }
+        final StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < length; i++) {
+          sb.append(strings.getElementAsString(i));
+        }
+        return StringVector.valueOf(sb.toString());
+      }
+    } else {
+      final StringVector strings = stri_prepare_arg_string(str, "str");
+      final int length = strings.length();
+      if (length <= 0) {
+        return StringVector.EMPTY;
+      } else {
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            return __string_vector_NA(1);
+          }
+        }
+        final String collapser = collapsers.getElementAsString(0);
+        final StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < length; i++) {
+          sb.append(strings.getElementAsString(i));
+          sb.append(collapser);
+        }
+        sb.setLength(sb.length() - collapser.length());
+        return StringVector.valueOf(sb.toString());
+      }
+    }
+  }
   public static SEXP stri_info(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_isempty(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -302,7 +373,65 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
-  public static SEXP stri_join(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_join(SEXP strlist, SEXP sep, SEXP collapse, SEXP ignore_null) {
+    if (Null.INSTANCE.equals(collapse)) {
+      return __join_no_collapse(strlist, sep, ignore_null);
+    } else {
+      final boolean ignore_empty = ((AtomicVector) ignore_null).getElementAsLogical(0).toBooleanStrict();
+      final ListVector lists = (ListVector) __prepare_arg_list_ignore_empty(strlist, ignore_empty);
+      final int strlist_length = lists.length();
+
+      if (strlist_length <= 0) {
+        return StringVector.EMPTY;
+      } else if (strlist_length == 1) {
+        // one vector + collapse string -- another frequently occurring case
+        // sep is ignored here
+        return stri_flatten(strlist.getElementAsSEXP(0), collapse);
+      } else {
+        final StringVector separators = stri_prepare_arg_string(sep, "sep");
+        final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
+        if (separators.isElementNA(0) || collapsers.isElementNA(0)) {
+          return __string_vector_NA(1);
+        } else if (separators.getElementAsString(0).length() == 0 && strlist_length == 2) {
+          // sep==empty string and 2 vectors --
+          // an often occurring case - we have some specialized functions for this :-)
+          return __join2_with_collapse(lists.getElementAsSEXP(0), lists.getElementAsSEXP(1), collapse);
+        } else {
+          int vectorize_length = 0;
+          for (int i = 0; i < strlist_length; i++) {
+            final int current_length = lists.getElementAsSEXP(i).length();
+            if (current_length <= 0) {
+              return StringVector.EMPTY;
+            } else if (current_length > vectorize_length) {
+              vectorize_length = current_length;
+            }
+          }
+          final StringVector[] vectorized = new StringVector[strlist_length];
+          for (int j = 0; j < strlist_length; j++) {
+            vectorized[j] = __ensure_length(vectorize_length, stri_prepare_arg_string(strlist.getElementAsSEXP(j), "strlist" + j));
+            for (int i = 0; i < vectorize_length; i++) {
+              if (vectorized[j].isElementNA(i)) {
+                return __string_vector_NA(1);
+              }
+            }
+          }
+          final String separator = separators.getElementAsString(0);
+          final String collapser = collapsers.getElementAsString(0);
+          final StringBuffer sb = new StringBuffer();
+          for (int i = 0; i < vectorize_length; i++) {
+            for (int j = 0; j < strlist_length; j++) {
+              sb.append(vectorized[j].getElementAsString(i));
+              sb.append(separator);
+            }
+            sb.setLength(sb.length() - separator.length());
+            sb.append(collapser);
+          }
+          sb.setLength(sb.length() - collapser.length());
+          return StringVector.valueOf(sb.toString());
+        }
+      }
+    }
+  }
   public static SEXP stri_join_list(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_join2(SEXP s1, SEXP s2) {
     if (s1.length() <= 0) {
@@ -433,8 +562,15 @@ public class stringi {
   public static StringVector stri_prepare_arg_string(SEXP s, String name) {
     if (s instanceof StringVector) {
       return (StringVector) s;
-    } else if (s.length() == 1 && Logical.NA.equals(s.asLogical())) {
-      return StringVector.valueOf(StringVector.NA);
+    } else {
+      final int length = s.length();
+      if (length == 1 && Logical.NA.equals(s.asLogical())) {
+        return StringVector.valueOf(StringVector.NA);
+      } else if (s instanceof DoubleVector) {
+        return new RepStringVector((DoubleVector) s, length, 1, s.getAttributes());
+      } else if (s instanceof IntVector) {
+        return new RepStringVector((IntVector) s, length, 1, s.getAttributes());
+      }
     }
     throw new EvalException("TODO");
   }
@@ -442,12 +578,30 @@ public class stringi {
   public static DoubleVector stri_prepare_arg_double(SEXP s, String name) {
     if (s instanceof DoubleVector) {
       return (DoubleVector) s;
+    } else {
+      final int length = s.length();
+      if (length == 1 && Logical.NA.equals(s.asLogical())) {
+        return DoubleVector.valueOf(DoubleVector.NA);
+      } else if (s instanceof IntVector) {
+        return new RepDoubleVector((IntVector) s, length, 1, s.getAttributes());
+      } else if (s instanceof StringVector) {
+        return new RepDoubleVector((StringVector) s, length, 1, s.getAttributes());
+      }
     }
     throw new EvalException("TODO");
   }
   public static IntVector stri_prepare_arg_integer(SEXP s, String name) {
     if (s instanceof IntVector) {
       return (IntVector) s;
+    } else {
+      final int length = s.length();
+      if (length == 1 && Logical.NA.equals(s.asLogical())) {
+        return IntVector.valueOf(IntVector.NA);
+      } else if (s instanceof DoubleVector) {
+        return new RepIntVector((DoubleVector) s, length, 1, s.getAttributes());
+      } else if (s instanceof StringVector) {
+        return new RepIntVector((StringVector) s, length, 1, s.getAttributes());
+      }
     }
     throw new EvalException("TODO");
   }
@@ -1515,7 +1669,7 @@ public class stringi {
     throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
   }
   private static BreakIterator __open_break_iterator(SEXP opts_brkiter, String defaultType) {
-    if (opts_brkiter == null) {
+    if (Null.INSTANCE.equals(opts_brkiter)) {
       // use default locale
       // use default type
       // use no skip rules
@@ -1536,5 +1690,115 @@ public class stringi {
     } else {
       throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
     }
+  }
+  private static SEXP __join2_with_collapse(SEXP s1, SEXP s2, SEXP collapse) {
+    if (Null.INSTANCE.equals(collapse)) {
+      return stri_join2(s1, s2);
+    }
+    final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
+    if (collapsers.isElementNA(0)) {
+      return __string_vector_NA(1);
+    }
+    if (s1.length() <= 0) {
+      return s1;
+    }
+    if (s2.length() <= 0) {
+      return s2;
+    }
+
+    final int length = __recycling_rule(true, s1, s2);
+    final StringVector e1 = __ensure_length(length, stri_prepare_arg_string(s1, "e1"));
+    final StringVector e2 = __ensure_length(length, stri_prepare_arg_string(s2, "e2"));
+
+    for (int i = 0; i < length; i++) {
+      if (e1.isElementNA(i) || e2.isElementNA(i)) {
+        return __string_vector_NA(1);
+      }
+    }
+    final String collapser = collapsers.getElementAsString(0);
+    final StringBuffer sb = new StringBuffer();
+    for (int i = 0; i < length; i++) {
+      sb.append(e1.getElementAsString(i));
+      sb.append(e2.getElementAsString(i));
+      sb.append(collapser);
+    }
+    sb.setLength(sb.length() - collapser.length());
+
+    return StringVector.valueOf(sb.toString());
+  }
+  private static SEXP __join_no_collapse(SEXP strlist, SEXP sep, SEXP ignore_null) {
+    final boolean ignore_empty = ((AtomicVector) ignore_null).getElementAsLogical(0).toBooleanStrict();
+    final ListVector lists = (ListVector) __prepare_arg_list_ignore_empty(strlist, ignore_empty);
+    final int strlist_length = lists.length();
+
+    if (strlist_length <= 0) {
+      return StringVector.EMPTY;
+    } else {
+      int vectorize_length = 0;
+      for (int i = 0; i < strlist_length; i++) {
+        final int current_length = lists.getElementAsSEXP(i).length();
+        if (current_length <= 0) {
+          return StringVector.EMPTY;
+        } else if (current_length > vectorize_length) {
+          vectorize_length = current_length;
+        }
+      }
+      final StringVector separators = stri_prepare_arg_string(sep, "sep");
+      if (separators.isElementNA(0)) {
+        return __string_vector_NA(vectorize_length);
+      }
+      if (separators.getElementAsString(0).length() == 0 && strlist_length == 2) {
+        // sep==empty string and 2 vectors --
+        // an often occurring case - we have some specialized functions for this :-)
+        return stri_join2(lists.getElementAsSEXP(0), lists.getElementAsSEXP(1));
+      }
+
+      final boolean[] whichNA = new boolean[vectorize_length];
+      Arrays.fill(whichNA, false);
+      final StringVector[] vectorized = new StringVector[strlist_length];
+      for (int j = 0; j < strlist_length; j++) {
+        vectorized[j] = __ensure_length(vectorize_length, stri_prepare_arg_string(strlist.getElementAsSEXP(j), "strlist" + j));
+        for (int i = 0; i < vectorize_length; i++) {
+          if (vectorized[j].isElementNA(i)) {
+            whichNA[i] = true;
+          }
+        }
+      }
+      final String separator = separators.getElementAsString(0);
+      final String[] result = new String[vectorize_length];
+
+      for (int i = 0; i < vectorize_length; i++) {
+        if (whichNA[i]) {
+          result[i] = StringVector.NA;
+        } else {
+          final StringBuffer sb = new StringBuffer(vectorized[0].getElementAsString(i));
+          for (int j = 1; j < strlist_length; j++) {
+            sb.append(separator);
+            sb.append(vectorized[j].getElementAsString(i));
+          }
+          result[i] = sb.toString();
+        }
+      }
+
+      return new StringArrayVector(result);
+    }
+  }
+  private static SEXP __prepare_arg_list_ignore_empty(SEXP x, boolean ignore_empty) {
+    if (!ignore_empty) {
+      return x;
+    }
+    final int length = x.length();
+    if (length <= 0) {
+      return x;
+    }
+    final ListVector xs = (ListVector) x;
+    final List<SEXP> result = new LinkedList<SEXP>();
+    for (int i = 0; i < length; i++) {
+      final SEXP element = xs.getElementAsSEXP(i);
+      if (0 < element.length()) {
+        result.add(element);
+      }
+    }
+    return new ListVector(result);
   }
 }
