@@ -125,7 +125,7 @@ public class stringi {
         result[i] = Logical.NA;
       } else {
         final String element = strings.getElementAsString(i);
-        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        final String appliedPattern = patterns.getElementAsString(i);
         if (!appliedPattern.equals(lastPattern)) {
           lastPattern = appliedPattern;
           matcher = new UnicodeSet(appliedPattern);
@@ -188,8 +188,8 @@ public class stringi {
         result[i] = Logical.NA;
       } else {
         final String element = strings.getElementAsString(i);
-        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
-        final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
         final boolean found = matcher.find();
         result[i] = Logical.valueOf(is_negating ? !found : found);
       }
@@ -206,7 +206,7 @@ public class stringi {
       return StringVector.EMPTY;
     } else {
       final String[] result = new String[length];
-      final StringBuffer sb = new StringBuffer();
+      final StringBuilder sb = new StringBuilder();
       for (int i = 0; i < length; i++) {
         int repeat;
         if (strings.isElementNA(i) || repeats.isElementNA(i) || (repeat = repeats.getElementAsInt(i)) < 0) {
@@ -250,7 +250,7 @@ public class stringi {
       } else {
         final DoubleVector element = (DoubleVector) vectors.getElementAsSEXP(i);
         final int size = element.length();
-        final StringBuffer sb = new StringBuffer(size);
+        final StringBuilder sb = new StringBuilder(size);
         boolean foundError = false;
         int codepoint = 0;
         for (int k = 0; !foundError && k < size; k++) {
@@ -279,7 +279,7 @@ public class stringi {
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
     // in Java, the invalid code points would result in an exception at the time of reading the string
-    // we cannot replace here invalid code points by \uFFFD or invalid strings by NA
+    // we cannot replace here invalid code points by 0xFFFD or invalid strings by NA
 
     final boolean strict_ascii = ((AtomicVector) is_unknown_8bit).getElementAsLogical(0).toBooleanStrict();
     if (strict_ascii) {
@@ -332,7 +332,7 @@ public class stringi {
             return __string_vector_NA(1);
           }
         }
-        final StringBuffer sb = new StringBuffer();
+        final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
           sb.append(strings.getElementAsString(i));
         }
@@ -350,7 +350,7 @@ public class stringi {
           }
         }
         final String collapser = collapsers.getElementAsString(0);
-        final StringBuffer sb = new StringBuffer();
+        final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
           sb.append(strings.getElementAsString(i));
           sb.append(collapser);
@@ -420,7 +420,7 @@ public class stringi {
           }
           final String separator = separators.getElementAsString(0);
           final String collapser = collapsers.getElementAsString(0);
-          final StringBuffer sb = new StringBuffer();
+          final StringBuilder sb = new StringBuilder();
           for (int i = 0; i < vectorize_length; i++) {
             for (int j = 0; j < strlist_length; j++) {
               sb.append(vectorized[j].getElementAsString(i));
@@ -674,7 +674,7 @@ public class stringi {
               } else {
                 final String replacement_i = replacements.getElementAsString(i);
                 final int patternLength = separatorPattern.length();
-                final StringBuffer replaced = new StringBuffer();
+                final StringBuilder replaced = new StringBuilder();
                 int previousStart = 0;
                 int beginIndex = elementNormalized.indexOf(patternNormalized);
                 while (beginIndex != -1) {
@@ -745,8 +745,8 @@ public class stringi {
               result[j] = StringVector.NA;
             } else {
               final String element = strings.getElementAsString(j);
-              final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
-              final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+              final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+              final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
               if (replacements.isElementNA(i)) {
                 if (matcher.find()) {
                   result[j] = StringVector.NA;
@@ -803,15 +803,15 @@ public class stringi {
               result[j] = StringVector.NA;
             } else {
               final String element = strings.getElementAsString(j);
-              final String pattern_i = __normalize_binary_properties(patterns.getElementAsString(i));
+              final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
               if (replacements.isElementNA(i)) {
-                if (Pattern.compile(pattern_i).matcher(element).find()) {
+                if (Pattern.compile(normalizedPattern).matcher(element).find()) {
                   result[j] = StringVector.NA;
                 } else {
                   result[j] = element;
                 }
               } else {
-                final String appliedPattern = (is_merging) ? "(?:" + pattern_i + ")+" : pattern_i;
+                final String appliedPattern = (is_merging) ? "(?:" + normalizedPattern + ")+" : normalizedPattern;
                 result[j] = element.replaceAll(appliedPattern, replacements.getElementAsString(i));
               }
             }
@@ -908,7 +908,7 @@ public class stringi {
           }
           final LinkedList<String> fields = new LinkedList<String>();
           final String element = strings.getElementAsString(i);
-          final String separatorPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+          final String separatorPattern = patterns.getElementAsString(i);
           if (!separatorPattern.equals(lastPattern)) {
             lastPattern = separatorPattern;
             matcher = new UnicodeSet(separatorPattern);
@@ -1040,7 +1040,7 @@ public class stringi {
       if (strings.isElementNA(i)) {
         result[i] = StringVector.valueOf(StringVector.NA);
       } else {
-        final String splitter = "(?:\\r\\n)|(?!\\r\\n)[\\u0a-\\u0d\\u85\\u2028\\u2029]";
+        final String splitter = "\\R"; // Any Unicode linebreak sequence, is equivalent to \x000D\x000A|[\x000A\x000B\x000C\x000D\x0085\x2028\x2029]
         final String element = strings.getElementAsString(i);
         final boolean omit = omits.getElementAsLogical(i).toBooleanStrict();
         final String[] splitted = element.split(splitter);
@@ -1061,7 +1061,7 @@ public class stringi {
     if (strings.isElementNA(0)) {
       return strings;
     } else {
-      final String splitter = "(?:\\r\\n)|(?!\\r\\n)[\\u0a-\\u0d\\u85\\u2028\\u2029]";
+      final String splitter = "\\R"; // Any Unicode linebreak sequence, is equivalent to \x000D\x000A|[\x000A\x000B\x000C\x000D\x0085\x2028\x2029]
       final String[] splitted = strings.getElementAsString(0).split(splitter);
       return new StringArrayVector(splitted);
     }
@@ -1109,7 +1109,8 @@ public class stringi {
                 depth++; // we need to do one split ahead here
               }
               final LinkedList<String> fields = new LinkedList<String>();
-              final Matcher matcher = Pattern.compile(__normalize_binary_properties(patterns.getElementAsString(i)), flags).matcher(element);
+              final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+              final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
               int previousStart = 0;
               for (int k = 0; k < depth && matcher.find();) {
                 final int beginIndex = matcher.start();
@@ -1400,7 +1401,7 @@ public class stringi {
 
     return flags;
   }
-  private static String __normalize_binary_properties(String pattern) {
+  private static String __binary_properties_to_Java(String pattern) {
     if (null == pattern) {
       return null;
     } else {
@@ -1459,7 +1460,7 @@ public class stringi {
         result[i] = StringVector.NA;
       } else {
         final String element = strings.getElementAsString(i);
-        final String separatorPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        final String separatorPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
         if (!separatorPattern.equals(lastPattern)) {
           lastPattern = separatorPattern;
           matcher = new UnicodeSet(separatorPattern);
@@ -1495,7 +1496,7 @@ public class stringi {
         result[i] = StringVector.NA;
       } else {
         final String patterni = (is_merging) ? "(?:" + patterns.getElementAsString(i) + ")+" : patterns.getElementAsString(i);
-        result[i] = strings.getElementAsString(i).replaceAll(__normalize_binary_properties(patterni), replacements.getElementAsString(i));
+        result[i] = strings.getElementAsString(i).replaceAll(__binary_properties_to_Java(patterni), replacements.getElementAsString(i));
       }
     }
 
@@ -1533,7 +1534,7 @@ public class stringi {
           } else {
             final String replacement_i = replacements.getElementAsString(i);
             final int patternLength = separatorPattern.length();
-            final StringBuffer replaced = new StringBuffer();
+            final StringBuilder replaced = new StringBuilder();
             int previousStart = 0;
             int beginIndex = (replaces.isLast()) ? elementNormalized.lastIndexOf(patternNormalized) : elementNormalized.indexOf(patternNormalized);
             while (replaces.isAll() && beginIndex != -1) {
@@ -1564,9 +1565,9 @@ public class stringi {
         result[i] = StringVector.NA;
       } else {
         final String element = strings.getElementAsString(i);
-        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
         final String replacement_i = replacements.getElementAsString(i);
-        final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
         if (replaces.isAll()) {
           result[i] = matcher.replaceAll(replacement_i);
         } else if (replaces.isFirst()) {
@@ -1721,7 +1722,7 @@ public class stringi {
       }
     }
     final String collapser = collapsers.getElementAsString(0);
-    final StringBuffer sb = new StringBuffer();
+    final StringBuilder sb = new StringBuilder();
     for (int i = 0; i < length; i++) {
       sb.append(e1.getElementAsString(i));
       sb.append(e2.getElementAsString(i));
@@ -1776,7 +1777,7 @@ public class stringi {
         if (whichNA[i]) {
           result[i] = StringVector.NA;
         } else {
-          final StringBuffer sb = new StringBuffer(vectorized[0].getElementAsString(i));
+          final StringBuilder sb = new StringBuilder(vectorized[0].getElementAsString(i));
           for (int j = 1; j < strlist_length; j++) {
             sb.append(separator);
             sb.append(vectorized[j].getElementAsString(i));
