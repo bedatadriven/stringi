@@ -142,18 +142,18 @@ stri_split_lines1 <- function(str) {
 #' @examples
 #' test <- "The\u00a0above-mentioned    features are very useful. " %s+%
 #'    "Warm thanks to their developers. 123 456 789"
-#' stri_split_boundaries(test, type="line")
-#' stri_split_boundaries(test, type="word")
-#' stri_split_boundaries(test, type="word", skip_word_none=TRUE)
-#' stri_split_boundaries(test, type="word", skip_word_none=TRUE, skip_word_letter=TRUE)
-#' stri_split_boundaries(test, type="word", skip_word_none=TRUE, skip_word_number=TRUE)
-#' stri_split_boundaries(test, type="sentence")
-#' stri_split_boundaries(test, type="sentence", skip_sentence_sep=TRUE)
-#' stri_split_boundaries(test, type="character")
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="line_break"))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="word"))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="word", skip_word_none=TRUE))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="word", skip_word_none=TRUE, skip_word_letter=TRUE))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="word", skip_word_none=TRUE, skip_word_number=TRUE))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="sentence"))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="sentence", skip_sentence_sep=TRUE))
+#' stri_split_boundaries(test, opts_brkiter=stri_opts_brkiter(type="character"))
 #'
 #' # filtered break iterator with the new ICU:
 #' stri_split_boundaries("Mr. Jones and Mrs. Brown are very happy.
-#' So am I, Prof. Smith.", type="sentence", locale="en_US@ss=standard") # ICU >= 56 only
+#' So am I, Prof. Smith.", opts_brkiter=stri_opts_brkiter(type="sentence", locale="en_US@ss=standard")) # ICU >= 56 only
 #'
 #' @export
 #' @family search_split

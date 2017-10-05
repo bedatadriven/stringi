@@ -4,7 +4,10 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.text.Normalizer;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -86,6 +89,7 @@ public class stringi {
         brkiter.first();
         int count = 0;
         while (BreakIterator.DONE < brkiter.next()) {
+          // FIXME handle skip_* rules
           count++;
         }
         result[i] = count;
@@ -665,7 +669,57 @@ public class stringi {
     return __replace_firstlast_charclass(str, pattern, replacement, ReplaceType.LAST);
   }
   public static SEXP stri_reverse(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_split_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_split_boundaries(SEXP str, SEXP n, SEXP tokens_only, SEXP simplify, SEXP opts_brkiter) {
+    final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, n);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final IntVector ns = __ensure_length(length, stri_prepare_arg_integer(n, "n"));
+
+    for (int i = 0; i < length; i++) {
+      if (ns.isElementNA(i)) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else {
+        if (strings.isElementNA(i)) {
+          result[i] = StringVector.valueOf(StringVector.NA);
+        } else {
+          int depth = ns.getElementAsInt(i);
+          if (depth == 0) {
+            result[i] = StringVector.EMPTY;
+          } else {
+            if (depth >= Integer.MAX_VALUE - 1) {
+              throw new IllegalArgumentException("argument `" + depth + "`: value too large");
+            } else if (depth < 0) {
+              depth = Integer.MAX_VALUE;
+            }
+            final LinkedList<String> fields = new LinkedList<String>();
+            final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
+            final String element = strings.getElementAsString(i);
+            brkiter.setText(strings.getElementAsString(i));
+            int previousStart = brkiter.first();
+            int k = 0;
+            while (k < depth && BreakIterator.DONE < brkiter.next()) {
+              // FIXME handle skip_* rules
+              fields.add(element.substring(previousStart, brkiter.current()));
+              previousStart = brkiter.current();
+              ++k; // another field
+            }
+            if (fields.size() <= 0) {
+              result[i] = StringVector.EMPTY;
+            } else {
+              if (k == depth && !only_tokens) {
+                fields.removeLast();
+                fields.add(element.substring(previousStart, element.length()));
+              }
+              result[i] = new StringArrayVector(fields);
+            }
+          }
+        }
+      }
+    }
+
+    return __simplify_when_required(new ListVector(result), simplify, n);
+  }
   public static SEXP stri_split_charclass(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, pattern, n, omit_empty);
@@ -728,8 +782,7 @@ public class stringi {
       }
     }
 
-    final ListVector resultSexp = new ListVector(result);
-    return __simplify_when_required(resultSexp, simplify, n);
+    return __simplify_when_required(new ListVector(result), simplify, n);
   }
   public static SEXP stri_split_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5, SEXP s6, SEXP s7) { throw new EvalException("TODO"); }
   public static SEXP stri_split_fixed(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_fixed) {
@@ -816,11 +869,44 @@ public class stringi {
       }
     }
 
-    final ListVector resultSexp = new ListVector(result);
-    return __simplify_when_required(resultSexp, simplify, n);
+    return __simplify_when_required(new ListVector(result), simplify, n);
   }
-  public static SEXP stri_split_lines(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_split_lines1(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_split_lines(SEXP str, SEXP omit_empty) {
+    final int length = __recycling_rule(true, str, omit_empty);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final LogicalVector omits = __ensure_length(length, stri_prepare_arg_logical(omit_empty, "omit_empty"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else {
+        final String splitter = "(?:\\r\\n)|(?!\\r\\n)[\\u0a-\\u0d\\u85\\u2028\\u2029]";
+        final String element = strings.getElementAsString(i);
+        final boolean omit = omits.getElementAsLogical(i).toBooleanStrict();
+        final String[] splitted = element.split(splitter);
+        if (omit) {
+          final List<String> filtered = Arrays.asList(splitted);
+          filtered.removeAll(Collections.singletonList(""));
+          result[i] = new StringArrayVector(filtered);
+        } else {
+          result[i] = new StringArrayVector(splitted);
+        }
+      }
+    }
+
+    return new ListVector(result);
+  }
+  public static SEXP stri_split_lines1(SEXP str) {
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    if (strings.isElementNA(0)) {
+      return strings;
+    } else {
+      final String splitter = "(?:\\r\\n)|(?!\\r\\n)[\\u0a-\\u0d\\u85\\u2028\\u2029]";
+      final String[] splitted = strings.getElementAsString(0).split(splitter);
+      return new StringArrayVector(splitted);
+    }
+  }
   public static SEXP stri_split_regex(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_regex) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int flags = __regex_flags(opts_regex);
@@ -895,8 +981,7 @@ public class stringi {
       }
     }
 
-    final ListVector resultSexp = new ListVector(result);
-    return __simplify_when_required(resultSexp, simplify, n);
+    return __simplify_when_required(new ListVector(result), simplify, n);
   }
   public static SEXP stri_startswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_startswith_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }

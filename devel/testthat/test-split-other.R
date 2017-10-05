@@ -32,7 +32,7 @@ test_that("stri_split_boundaries", {
    expect_identical(stri_split_boundaries("", opts_brkiter=stri_opts_brkiter(type="word")), list(character(0)))
    expect_identical(stri_split_boundaries("    \t\n   ", opts_brkiter=stri_opts_brkiter(type="word", skip_word_none = TRUE)), list(character(0)))
    expect_identical(stri_split_boundaries("\u0105\u0105\u0105", opts_brkiter=stri_opts_brkiter(type="word")), list("\u0105\u0105\u0105"))
-   expect_identical(stri_split_boundaries("aaa", opts_brkiter=stri_opts_brkiter(type="line")), list("aaa"))
+   expect_identical(stri_split_boundaries("aaa", opts_brkiter=stri_opts_brkiter(type="line_break")), list("aaa"))
    expect_identical(stri_split_boundaries("aaa", opts_brkiter=stri_opts_brkiter(type="sentence")), list("aaa"))
    expect_identical(stri_split_boundaries(stri_trans_nfkd("a\u0105"), type='chara')[[1]], stri_trans_nfkd(c("a", "\u0105")))
 
