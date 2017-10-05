@@ -7,7 +7,7 @@
   <version>1.2-SNAPSHOT</version>
 
   <properties>
-    <renjin.version>0.8.2423</renjin.version>
+    <renjin.version>0.8.2463</renjin.version>
   </properties>
 
   <distributionManagement>
