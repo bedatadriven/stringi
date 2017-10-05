@@ -78,7 +78,7 @@ This is function is equivalent to a call to
 }
 \examples{
 test <- "The\\u00a0above-mentioned    features are very useful. Warm thanks to their developers."
-stri_locate_all_boundaries(test, type="line")
+stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="line_breask"))
 stri_locate_all_boundaries(test, type="word")
 stri_locate_all_boundaries(test, type="sentence")
 stri_locate_all_boundaries(test, type="character")
