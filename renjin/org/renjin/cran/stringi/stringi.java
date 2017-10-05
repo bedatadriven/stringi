@@ -34,7 +34,6 @@ import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Symbols;
-import org.renjin.sexp.Null;
 
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UCharacter.EastAsianWidth;
@@ -171,6 +170,9 @@ public class stringi {
     return new LogicalArrayVector(result);
   }
   public static SEXP stri_detect_regex(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex) {
+    if (str.length() == 0 || pattern.length() == 0) {
+      return ListVector.EMPTY;
+    }
     final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern);
