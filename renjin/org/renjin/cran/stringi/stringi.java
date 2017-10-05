@@ -573,6 +573,8 @@ public class stringi {
         return new RepStringVector((DoubleVector) s, length, 1, s.getAttributes());
       } else if (s instanceof IntVector) {
         return new RepStringVector((IntVector) s, length, 1, s.getAttributes());
+      } else if (s instanceof LogicalVector) {
+        return new RepStringVector((LogicalVector) s, length, 1, s.getAttributes());
       }
     }
     throw new EvalException("TODO");
