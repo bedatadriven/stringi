@@ -105,10 +105,89 @@ public class stringi {
   public static SEXP stri_datetime_format(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_parse(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_add(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_detect_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_detect_charclass(SEXP str, SEXP pattern, SEXP negate) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final Logical[] result = new Logical[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        if (!appliedPattern.equals(lastPattern)) {
+          lastPattern = appliedPattern;
+          matcher = new UnicodeSet(appliedPattern);
+        }
+        final boolean found = -1 < matcher.span(element, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        result[i] = Logical.valueOf(is_negating ? !found : found);
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
   public static SEXP stri_detect_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_detect_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_detect_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_detect_fixed(SEXP str, SEXP pattern, SEXP negate, SEXP opts_fixed) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final int flags = __fixed_flags(opts_fixed, false);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final int length = __recycling_rule(true, str, pattern);
+    final Logical[] result = new Logical[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = Logical.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        if (element.length() <= 0) {
+          result[i] = Logical.valueOf(is_negating);
+        } else {
+          final String separatorPattern = patterns.getElementAsString(i);
+          final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+          final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+          final boolean found = -1 < elementNormalized.indexOf(patternNormalized);
+          result[i] = Logical.valueOf(is_negating ? !found : found);
+        }
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+  public static SEXP stri_detect_regex(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final Logical[] result = new Logical[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = Logical.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String appliedPattern = __normalize_binary_properties(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(appliedPattern, flags).matcher(element);
+        final boolean found = matcher.find();
+        result[i] = Logical.valueOf(is_negating ? !found : found);
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
   public static SEXP stri_dup(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
