@@ -655,7 +655,7 @@ public class stringi {
   }
   public static SEXP stri_locate_all_coll(SEXP str, SEXP pattern, SEXP omit_no_match, SEXP opts_collator) {
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
-    final RuleBasedCollator collator = __coll_flags(opts_collator);
+    final RuleBasedCollator collator = __open_collator(opts_collator);
     final int length = __recycling_rule(true, str, pattern);
     final IntVector[] result = new IntVector[length];
     final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
@@ -1527,94 +1527,6 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
-  private static RuleBasedCollator __coll_flags(SEXP opts_collator) {
-    final int narg = (opts_collator == null) ? 0 : opts_collator.length();
-    if (narg <= 0) {
-      return (RuleBasedCollator) Collator.getInstance();
-    } else {
-      final ListVector options = (ListVector) opts_collator;
-      final StringVector names = (StringVector) opts_collator.getAttribute(Symbols.NAMES);
-      if (names == null || narg != names.length()) {
-        throw new EvalException("incorrect collator option specifier. see ?stri_opts_collator");
-      }
-      Locale locale = Locale.getDefault();
-      int strength = Collator.TERTIARY;
-      Boolean shifted = null;
-      Boolean upperfirst = null;
-      Boolean lowerfirst = null;
-      Boolean french = null;
-      Boolean caselevel = null;
-      Integer decomposing = null;
-      Boolean numeric = null;
-      for (int i = 0; i < narg; i++) {
-        if (names.isElementNA(i)) {
-          throw new EvalException("incorrect collator option specifier. see ?stri_opts_collator");
-        }
-        final String name = names.getElementAsString(i);
-        if ("locale".equals(name)) {
-          locale = Locale.forLanguageTag(options.getElementAsString(i));
-        } else if ("strength".equals(name)) {
-          strength = options.getElementAsInt(i) - 1;
-          if (strength < Collator.PRIMARY) {
-            strength = Collator.PRIMARY;
-          } else if (Collator.IDENTICAL < strength) {
-            strength = Collator.IDENTICAL;
-          }
-        } else if ("alternate_shifted".equals(name)) {
-          shifted = options.getElementAsLogical(i).toBooleanStrict();
-        } else if ("uppercase_first".equals(name)) {
-          final Logical upfirst = options.getElementAsLogical(i);
-          if (Logical.NA.equals(upfirst)) {
-            upperfirst = false;
-            lowerfirst = false;
-          } else if (Logical.TRUE.equals(upfirst)) {
-            upperfirst = true;
-          } else if (Logical.FALSE.equals(upfirst)) {
-            lowerfirst = true;
-          }
-        } else if ("french".equals(name)) {
-          french = options.getElementAsLogical(i).toBooleanStrict();
-        } else if ("case_level".equals(name)) {
-          caselevel = options.getElementAsLogical(i).toBooleanStrict();
-        } else if ("normalization".equals(name)) {
-          final boolean normalized = options.getElementAsLogical(i).toBooleanStrict();
-          if (normalized) {
-            decomposing = Collator.CANONICAL_DECOMPOSITION;
-          } else {
-            decomposing = Collator.NO_DECOMPOSITION;
-          }
-        } else if ("numeric".equals(name)) {
-          numeric = options.getElementAsLogical(i).toBooleanStrict();
-        } else {
-          Native.currentContext().warn("incorrect opts_collator setting: `" + name + "`. ignoring");
-        }
-      }
-      final RuleBasedCollator collator = (RuleBasedCollator) Collator.getInstance(locale);
-      collator.setStrength(strength);
-      if (shifted != null) {
-        collator.setAlternateHandlingShifted(shifted);
-      }
-      if (upperfirst != null) {
-        collator.setUpperCaseFirst(upperfirst);
-      }
-      if (lowerfirst != null) {
-        collator.setLowerCaseFirst(lowerfirst);
-      }
-      if (french != null) {
-        collator.setFrenchCollation(french);
-      }
-      if (caselevel != null) {
-        collator.setCaseLevel(caselevel);
-      }
-      if (decomposing != null) {
-        collator.setDecomposition(decomposing);
-      }
-      if (numeric != null) {
-        collator.setNumericCollation(numeric);
-      }
-      return collator;
-    }
-  }
   private static int __fixed_flags(SEXP opts_fixed, boolean allow_overlap) {
     int flags = 0;
 
@@ -2003,6 +1915,94 @@ public class stringi {
       throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
     }
   }
+  private static RuleBasedCollator __open_collator(SEXP opts_collator) {
+    final int narg = (opts_collator == null) ? 0 : opts_collator.length();
+    if (narg <= 0) {
+      return (RuleBasedCollator) Collator.getInstance();
+    } else {
+      final ListVector options = (ListVector) opts_collator;
+      final StringVector names = (StringVector) opts_collator.getAttribute(Symbols.NAMES);
+      if (names == null || narg != names.length()) {
+        throw new EvalException("incorrect collator option specifier. see ?stri_opts_collator");
+      }
+      Locale locale = Locale.getDefault();
+      int strength = Collator.TERTIARY;
+      Boolean shifted = null;
+      Boolean upperfirst = null;
+      Boolean lowerfirst = null;
+      Boolean french = null;
+      Boolean caselevel = null;
+      Integer decomposing = null;
+      Boolean numeric = null;
+      for (int i = 0; i < narg; i++) {
+        if (names.isElementNA(i)) {
+          throw new EvalException("incorrect collator option specifier. see ?stri_opts_collator");
+        }
+        final String name = names.getElementAsString(i);
+        if ("locale".equals(name)) {
+          locale = Locale.forLanguageTag(options.getElementAsString(i));
+        } else if ("strength".equals(name)) {
+          strength = options.getElementAsInt(i) - 1;
+          if (strength < Collator.PRIMARY) {
+            strength = Collator.PRIMARY;
+          } else if (Collator.IDENTICAL < strength) {
+            strength = Collator.IDENTICAL;
+          }
+        } else if ("alternate_shifted".equals(name)) {
+          shifted = options.getElementAsLogical(i).toBooleanStrict();
+        } else if ("uppercase_first".equals(name)) {
+          final Logical upfirst = options.getElementAsLogical(i);
+          if (Logical.NA.equals(upfirst)) {
+            upperfirst = false;
+            lowerfirst = false;
+          } else if (Logical.TRUE.equals(upfirst)) {
+            upperfirst = true;
+          } else if (Logical.FALSE.equals(upfirst)) {
+            lowerfirst = true;
+          }
+        } else if ("french".equals(name)) {
+          french = options.getElementAsLogical(i).toBooleanStrict();
+        } else if ("case_level".equals(name)) {
+          caselevel = options.getElementAsLogical(i).toBooleanStrict();
+        } else if ("normalization".equals(name)) {
+          final boolean normalized = options.getElementAsLogical(i).toBooleanStrict();
+          if (normalized) {
+            decomposing = Collator.CANONICAL_DECOMPOSITION;
+          } else {
+            decomposing = Collator.NO_DECOMPOSITION;
+          }
+        } else if ("numeric".equals(name)) {
+          numeric = options.getElementAsLogical(i).toBooleanStrict();
+        } else {
+          Native.currentContext().warn("incorrect opts_collator setting: `" + name + "`. ignoring");
+        }
+      }
+      final RuleBasedCollator collator = (RuleBasedCollator) Collator.getInstance(locale);
+      collator.setStrength(strength);
+      if (shifted != null) {
+        collator.setAlternateHandlingShifted(shifted);
+      }
+      if (upperfirst != null) {
+        collator.setUpperCaseFirst(upperfirst);
+      }
+      if (lowerfirst != null) {
+        collator.setLowerCaseFirst(lowerfirst);
+      }
+      if (french != null) {
+        collator.setFrenchCollation(french);
+      }
+      if (caselevel != null) {
+        collator.setCaseLevel(caselevel);
+      }
+      if (decomposing != null) {
+        collator.setDecomposition(decomposing);
+      }
+      if (numeric != null) {
+        collator.setNumericCollation(numeric);
+      }
+      return collator;
+    }
+  }
   private static SEXP __join2_with_collapse(SEXP s1, SEXP s2, SEXP collapse) {
     if (Null.INSTANCE.equals(collapse)) {
       return stri_join2(s1, s2);
@@ -2152,7 +2152,7 @@ public class stringi {
     return __locate_set_dimnames_matrix(builder);
   }
   private static SEXP __locate_firstlast_coll(SEXP str, SEXP pattern, SEXP opts_collator, ReplaceType replaces) {
-    final RuleBasedCollator collator = __coll_flags(opts_collator);
+    final RuleBasedCollator collator = __open_collator(opts_collator);
     final int length = __recycling_rule(true, str, pattern);
     final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
     final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
