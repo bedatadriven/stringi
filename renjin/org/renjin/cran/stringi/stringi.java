@@ -76,29 +76,6 @@ public class stringi {
   public static SEXP stri_cmp_neq(SEXP s1, SEXP s2) {
     return __cmp_codepoints(s1, s2, true);
   }
-  private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
-    final StringVector e1 = stri_prepare_arg_string(s1, "e1");
-    final StringVector e2 = stri_prepare_arg_string(s2, "e2");
-    final int length = __recycling_rule(true, e1, e2);
-    final Logical[] result = new Logical[length];
-
-    for (int i = 0; i < length; i++) {
-      if (e1.isElementNA(i) || e2.isElementNA(i)) {
-        result[i] = Logical.NA;
-      } else {
-        final String element1 = e1.getElementAsString(i);
-        final String element2 = e2.getElementAsString(i);
-        if (element1.length() != element2.length()) {
-          result[i] = negate ? Logical.TRUE : Logical.FALSE;
-        } else {
-          result[i] = Logical.valueOf(negate ? !element1.equals(element2) : element1.equals(element2));
-        }
-      }
-    }
-
-    return new LogicalArrayVector(result);
-  }
-
   public static SEXP stri_cmp(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_lt(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_le(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
@@ -1892,5 +1869,23 @@ public class stringi {
       }
     }
     return new ListVector(result);
+  }
+  private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
+    final StringVector e1 = stri_prepare_arg_string(s1, "e1");
+    final StringVector e2 = stri_prepare_arg_string(s2, "e2");
+    final int length = __recycling_rule(true, e1, e2);
+    final Logical[] result = new Logical[length];
+
+    for (int i = 0; i < length; i++) {
+      if (e1.isElementNA(i) || e2.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        final String element1 = e1.getElementAsString(i);
+        final String element2 = e2.getElementAsString(i);
+        result[i] = Logical.valueOf(negate ? !element1.equals(element2) : element1.equals(element2));
+      }
+    }
+
+    return new LogicalArrayVector(result);
   }
 }
