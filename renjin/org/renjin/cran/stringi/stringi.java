@@ -40,10 +40,12 @@ import com.ibm.icu.lang.UCharacter.EastAsianWidth;
 import com.ibm.icu.lang.UCharacter.HangulSyllableType;
 import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.text.BreakIterator;
+import com.ibm.icu.text.CaseMap;
 import com.ibm.icu.text.RuleBasedBreakIterator;
 import com.ibm.icu.text.UnicodeSet;
 import com.ibm.icu.text.UnicodeSetSpanner;
 import com.ibm.icu.text.UnicodeSetSpanner.TrimOption;
+import com.ibm.icu.util.ULocale;
 
 /**
  * Substitute implementations for C functions
@@ -68,8 +70,35 @@ public class stringi {
 
   }
 
-  public static SEXP stri_cmp_eq(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_cmp_neq(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_cmp_eq(SEXP s1, SEXP s2) {
+    return __cmp_codepoints(s1, s2, false);
+  }
+  public static SEXP stri_cmp_neq(SEXP s1, SEXP s2) {
+    return __cmp_codepoints(s1, s2, true);
+  }
+  private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
+    final StringVector e1 = stri_prepare_arg_string(s1, "e1");
+    final StringVector e2 = stri_prepare_arg_string(s2, "e2");
+    final int length = __recycling_rule(true, e1, e2);
+    final Logical[] result = new Logical[length];
+
+    for (int i = 0; i < length; i++) {
+      if (e1.isElementNA(i) || e2.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        final String element1 = e1.getElementAsString(i);
+        final String element2 = e2.getElementAsString(i);
+        if (element1.length() != element2.length()) {
+          result[i] = negate ? Logical.TRUE : Logical.FALSE;
+        } else {
+          result[i] = Logical.valueOf(negate ? !element1.equals(element2) : element1.equals(element2));
+        }
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+
   public static SEXP stri_cmp(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_lt(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_le(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
@@ -1195,9 +1224,66 @@ public class stringi {
     return __trans_nf(str, Normalizer.Form.NFKD);
   }
   public static SEXP stri_trans_nfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_totitle(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_tolower(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_toupper(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_totitle(SEXP str, SEXP opts_brkiter) {
+    final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "word");
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Title mapper = CaseMap.toTitle();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(brkiter.getLocale(ULocale.ACTUAL_LOCALE).toLocale(), brkiter, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  public static SEXP stri_trans_tolower(SEXP str, SEXP locale) {
+    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Lower mapper = CaseMap.toLower();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(language, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  public static SEXP stri_trans_toupper(SEXP str, SEXP locale) {
+    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Upper mapper = CaseMap.toUpper();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(language, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_trim_both(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.BOTH);
   }
