@@ -2597,7 +2597,7 @@ public class stringi {
       }
     }
 
-    return null;
+    return new StringArrayVector(result);
   }
   private static SEXP __extract_firstlast_regex(SEXP str, SEXP pattern, SEXP opts_regex, ReplaceType replaces) {
     final int flags = __regex_flags(opts_regex);
