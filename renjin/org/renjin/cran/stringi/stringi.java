@@ -563,9 +563,9 @@ public class stringi {
         }
         int previousStart = 0;
         int beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
-        if (0 < beginIndex) {
+        if (-1 < beginIndex) {
           final List<Range<Integer>> occurrences = new LinkedList<>();
-          while (previousStart < element.length()) {
+          while (previousStart < element.length() && beginIndex < element.length()) {
             final int endIndex = matcher.span(element, beginIndex, UnicodeSet.SpanCondition.CONTAINED);
             if (is_merging) {
               occurrences.add(Range.closedOpen(beginIndex, endIndex));
