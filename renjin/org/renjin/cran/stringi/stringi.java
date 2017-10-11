@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -561,7 +562,70 @@ public class stringi {
   }
   public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_pad(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_pad(SEXP str, SEXP width, SEXP side, SEXP pad, SEXP use_length) {
+    if (!side.getTypeName().equals(IntVector.TYPE_NAME) || side.length() != 1) {
+      throw new EvalException("incorrect argument");
+    }
+    final int border = side.asInt();
+    if (border < 0 || 2 < border) {
+      throw new EvalException("incorrect argument");
+    }
+    final boolean does_use_length = ((AtomicVector) use_length).asLogical().toBooleanStrict();
+    final int length = __recycling_rule(true, str, width, pad);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final IntVector widths = __ensure_length(length, stri_prepare_arg_integer(width, "width"));
+    final StringVector pads = __ensure_length(length, stri_prepare_arg_string(pad, "pad"));
+    final StringBuilder sb = new StringBuilder();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || pads.isElementNA(i) | widths.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String padder = pads.getElementAsString(i);
+        final int min_width = widths.getElementAsInt(i);
+        final int element_width = does_use_length ? element.codePointCount(0, element.length()) : __width_string(element);
+        final int padder_width = does_use_length ? padder.codePointCount(0, padder.length()) : __width_string(padder);
+        if (padder_width != 1) {
+          throw new EvalException("each string in `pad` should consist of exactly 1 code point or of total width 1");
+        }
+        if (min_width <= element_width) {
+          result[i] = element;
+        } else {
+          sb.setLength(0);
+          final int filling = min_width - element_width;
+          int k = 0;
+          switch (border) {
+          case 0: // left
+            for (k = 0; k < filling; k++) {
+              sb.append(padder);
+            }
+            sb.append(element);
+            break;
+          case 1: // right
+            sb.append(element);
+            for (k = 0; k < filling; k++) {
+              sb.append(padder);
+            }
+            break;
+          case 2: // both
+            for (k = 0; k < filling / 2; k++) {
+              sb.append(padder);
+            }
+            sb.append(element);
+            for (; k < filling; k++) {
+              sb.append(padder);
+            }
+            break;
+          }
+          result[i] = sb.toString();
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static StringVector stri_prepare_arg_string(SEXP s, String name) {
     if (s instanceof StringVector) {
       return (StringVector) s;
@@ -827,7 +891,39 @@ public class stringi {
   public static SEXP stri_replace_last_charclass(SEXP str, SEXP pattern, SEXP replacement) {
     return __replace_firstlast_charclass(str, pattern, replacement, ReplaceType.LAST);
   }
-  public static SEXP stri_reverse(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_reverse(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final Deque<Integer> marks = new LinkedList<>();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        for (int j = element.length(); 0 < j;) {
+          final int codePoint = element.codePointBefore(j);
+          if (COMBINING_MARKS.contains(codePoint)) {
+            marks.addFirst(codePoint);
+          } else if (!marks.isEmpty()) {
+            sb.appendCodePoint(codePoint);
+            while (!marks.isEmpty()) {
+              sb.appendCodePoint(marks.removeFirst());
+            }
+          } else {
+            sb.appendCodePoint(codePoint);
+          }
+          j -= Character.charCount(codePoint);
+        }
+        result[i] = sb.toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_split_boundaries(SEXP str, SEXP n, SEXP tokens_only, SEXP simplify, SEXP opts_brkiter) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, n);
@@ -1239,6 +1335,12 @@ public class stringi {
       return LAST.equals(this);
     }
   }
+
+  // @formatter:off
+  private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
+      .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
+      .add(0x20D0, 0x20FF).add(0xFE20, 0xFE2F); // combining marks on symbols
+  // @formatter:on
 
   /**
    * Calculate the length of the output vector when applying a vectorized operation on >= 2 vectors
