@@ -143,7 +143,41 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
-  public static SEXP stri_detect_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_detect_coll(SEXP str, SEXP pattern, SEXP negate, SEXP opts_collator) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final int length = __recycling_rule(true, str, pattern);
+    final Logical[] result = new Logical[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    StringSearch matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = Logical.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = Logical.valueOf(is_negating);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (separatorPattern.equals(lastPattern)) {
+          matcher.setTarget(new StringCharacterIterator(element));
+        } else {
+          lastPattern = separatorPattern;
+          matcher = new StringSearch(separatorPattern, new StringCharacterIterator(element), collator);
+        }
+        matcher.reset();
+        final boolean found = matcher.first() != StringSearch.DONE;
+        result[i] = Logical.valueOf(is_negating ? !found : found);
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
   public static SEXP stri_detect_fixed(SEXP str, SEXP pattern, SEXP negate, SEXP opts_fixed) {
     final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, false);
