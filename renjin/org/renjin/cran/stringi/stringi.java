@@ -623,7 +623,22 @@ public class stringi {
   public static SEXP stri_prepare_arg_logical_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_shuffle(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_strings(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_na(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_replace_na(SEXP str, SEXP replacement) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final String na = stri_prepare_arg_string(replacement, "replacement").getElementAsString(0);
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = na;
+      } else {
+        result[i] = strings.getElementAsString(i);
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_replace_all_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_fixed) {
     final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
     if (is_vectorized) {
