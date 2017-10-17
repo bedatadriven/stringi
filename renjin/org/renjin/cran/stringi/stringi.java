@@ -7,6 +7,7 @@ import java.text.Normalizer;
 import java.text.StringCharacterIterator;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -43,6 +44,7 @@ import com.ibm.icu.lang.UCharacter.EastAsianWidth;
 import com.ibm.icu.lang.UCharacter.HangulSyllableType;
 import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.text.BreakIterator;
+import com.ibm.icu.text.CaseMap;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedBreakIterator;
 import com.ibm.icu.text.RuleBasedCollator;
@@ -50,6 +52,7 @@ import com.ibm.icu.text.StringSearch;
 import com.ibm.icu.text.UnicodeSet;
 import com.ibm.icu.text.UnicodeSetSpanner;
 import com.ibm.icu.text.UnicodeSetSpanner.TrimOption;
+import com.ibm.icu.util.ULocale;
 
 /**
  * Substitute implementations for C functions
@@ -74,8 +77,12 @@ public class stringi {
 
   }
 
-  public static SEXP stri_cmp_eq(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_cmp_neq(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_cmp_eq(SEXP s1, SEXP s2) {
+    return __cmp_codepoints(s1, s2, false);
+  }
+  public static SEXP stri_cmp_neq(SEXP s1, SEXP s2) {
+    return __cmp_codepoints(s1, s2, true);
+  }
   public static SEXP stri_cmp(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_lt(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_le(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
@@ -106,10 +113,113 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_count_charclass(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_count_fixed(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_charclass(SEXP str, SEXP pattern) {
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (!separatorPattern.equals(lastPattern)) {
+          lastPattern = separatorPattern;
+          matcher = new UnicodeSet(separatorPattern);
+        }
+        int found = 0;
+        int previousStart = 0;
+        int beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        if (0 < beginIndex) {
+          while (previousStart < element.length() && beginIndex < element.length()) {
+            found++;
+            final int endIndex = matcher.span(element, beginIndex, UnicodeSet.SpanCondition.CONTAINED);
+            previousStart = endIndex;
+            beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+          }
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_count_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_count_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
+    final int flags = __fixed_flags(opts_fixed, true);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final boolean allows_overlap = (flags & Pattern.COMMENTS) > 0;
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        final int patternLength = separatorPattern.length();
+        final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+        final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+        int found = 0;
+        int previousStart = 0;
+        int beginIndex = elementNormalized.indexOf(patternNormalized);
+        while (-1 < beginIndex) {
+          found++;
+          previousStart = beginIndex + (allows_overlap ? 1 : patternLength);
+          beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
+  public static SEXP stri_count_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        int found = 0;
+        while (matcher.find()) {
+          found++;
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_datetime_symbols(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_fields(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_now(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
@@ -770,7 +880,70 @@ public class stringi {
   }
   public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_pad(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_pad(SEXP str, SEXP width, SEXP side, SEXP pad, SEXP use_length) {
+    if (!side.getTypeName().equals(IntVector.TYPE_NAME) || side.length() != 1) {
+      throw new EvalException("incorrect argument");
+    }
+    final int border = side.asInt();
+    if (border < 0 || 2 < border) {
+      throw new EvalException("incorrect argument");
+    }
+    final boolean does_use_length = ((AtomicVector) use_length).asLogical().toBooleanStrict();
+    final int length = __recycling_rule(true, str, width, pad);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final IntVector widths = __ensure_length(length, stri_prepare_arg_integer(width, "width"));
+    final StringVector pads = __ensure_length(length, stri_prepare_arg_string(pad, "pad"));
+    final StringBuilder sb = new StringBuilder();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || pads.isElementNA(i) | widths.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String padder = pads.getElementAsString(i);
+        final int min_width = widths.getElementAsInt(i);
+        final int element_width = does_use_length ? element.codePointCount(0, element.length()) : __width_string(element);
+        final int padder_width = does_use_length ? padder.codePointCount(0, padder.length()) : __width_string(padder);
+        if (padder_width != 1) {
+          throw new EvalException("each string in `pad` should consist of exactly 1 code point or of total width 1");
+        }
+        if (min_width <= element_width) {
+          result[i] = element;
+        } else {
+          sb.setLength(0);
+          final int filling = min_width - element_width;
+          int k = 0;
+          switch (border) {
+          case 0: // left
+            for (k = 0; k < filling; k++) {
+              sb.append(padder);
+            }
+            sb.append(element);
+            break;
+          case 1: // right
+            sb.append(element);
+            for (k = 0; k < filling; k++) {
+              sb.append(padder);
+            }
+            break;
+          case 2: // both
+            for (k = 0; k < filling / 2; k++) {
+              sb.append(padder);
+            }
+            sb.append(element);
+            for (; k < filling; k++) {
+              sb.append(padder);
+            }
+            break;
+          }
+          result[i] = sb.toString();
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static StringVector stri_prepare_arg_string(SEXP s, String name) {
     if (s instanceof StringVector) {
       return (StringVector) s;
@@ -832,7 +1005,22 @@ public class stringi {
   public static SEXP stri_prepare_arg_logical_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_shuffle(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_strings(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_replace_na(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_replace_na(SEXP str, SEXP replacement) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final String na = stri_prepare_arg_string(replacement, "replacement").getElementAsString(0);
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = na;
+      } else {
+        result[i] = strings.getElementAsString(i);
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_replace_all_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_fixed) {
     final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
     if (is_vectorized) {
@@ -886,7 +1074,7 @@ public class stringi {
                 final StringBuilder replaced = new StringBuilder();
                 int previousStart = 0;
                 int beginIndex = elementNormalized.indexOf(patternNormalized);
-                while (beginIndex != -1) {
+                while (-1 < beginIndex) {
                   replaced.append(element.substring(previousStart, beginIndex));
                   replaced.append(replacement_i);
                   previousStart = beginIndex + patternLength;
@@ -1036,7 +1224,39 @@ public class stringi {
   public static SEXP stri_replace_last_charclass(SEXP str, SEXP pattern, SEXP replacement) {
     return __replace_firstlast_charclass(str, pattern, replacement, ReplaceType.LAST);
   }
-  public static SEXP stri_reverse(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_reverse(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final Deque<Integer> marks = new LinkedList<>();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        for (int j = element.length(); 0 < j;) {
+          final int codePoint = element.codePointBefore(j);
+          if (COMBINING_MARKS.contains(codePoint)) {
+            marks.addFirst(codePoint);
+          } else if (!marks.isEmpty()) {
+            sb.appendCodePoint(codePoint);
+            while (!marks.isEmpty()) {
+              sb.appendCodePoint(marks.removeFirst());
+            }
+          } else {
+            sb.appendCodePoint(codePoint);
+          }
+          j -= Character.charCount(codePoint);
+        }
+        result[i] = sb.toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_split_boundaries(SEXP str, SEXP n, SEXP tokens_only, SEXP simplify, SEXP opts_brkiter) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, n);
@@ -1362,11 +1582,78 @@ public class stringi {
   public static SEXP stri_subset_charclass(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_subset_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_subset_regex(SEXP str, SEXP pattern, SEXP omit_na, SEXP negate, SEXP opts_regex) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final boolean does_omit_na = ((AtomicVector) omit_na).getElementAsLogical(0).toBooleanStrict();
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+    final Logical[] which = new Logical[length];
+
+    int found = 0;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        if (does_omit_na) {
+          which[i] = Logical.FALSE;
+        } else {
+          which[i] = Logical.NA;
+          found++;
+        }
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        which[i] = is_negating ? Logical.valueOf(!matcher.find()) : Logical.valueOf(matcher.find());
+        if (Logical.TRUE.equals(which[i])) {
+          found++;
+        }
+      }
+    }
+
+    return __subset_by_logical(strings, which, found);
+  }
   public static SEXP stri_subset_charclass_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_coll_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_fixed_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_subset_regex_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_subset_regex_replacement(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex, SEXP value) {
+    final int value_length = value.length();
+    if (value_length <= 0) {
+      throw new EvalException("replacement has length zero");
+    }
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+    final StringVector values = stri_prepare_arg_string(value, "value");
+
+    int k = 0;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        final boolean found = is_negating ? !matcher.find() : matcher.find();
+        if (found) {
+          result[i] = values.getElementAsString((k++)%value_length);
+        } else {
+          result[i] = strings.getElementAsString(i);
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_test_Rmark(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_test_returnasis(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_test_UnicodeContainer16(SEXP s1) { throw new EvalException("TODO"); }
@@ -1404,9 +1691,66 @@ public class stringi {
     return __trans_nf(str, Normalizer.Form.NFKD);
   }
   public static SEXP stri_trans_nfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_totitle(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_tolower(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_trans_toupper(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_totitle(SEXP str, SEXP opts_brkiter) {
+    final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "word");
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Title mapper = CaseMap.toTitle();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(brkiter.getLocale(ULocale.ACTUAL_LOCALE).toLocale(), brkiter, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  public static SEXP stri_trans_tolower(SEXP str, SEXP locale) {
+    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Lower mapper = CaseMap.toLower();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(language, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  public static SEXP stri_trans_toupper(SEXP str, SEXP locale) {
+    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+    final CaseMap.Upper mapper = CaseMap.toUpper();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        sb.setLength(0);
+        result[i] = mapper.apply(language, element, sb, null).toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_trim_both(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.BOTH);
   }
@@ -1448,6 +1792,12 @@ public class stringi {
       return LAST.equals(this);
     }
   }
+
+  // @formatter:off
+  private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
+      .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
+      .add(0x20D0, 0x20FF).add(0xFE20, 0xFE2F); // combining marks on symbols
+  // @formatter:on
 
   /**
    * Calculate the length of the output vector when applying a vectorized operation on >= 2 vectors
@@ -2113,7 +2463,7 @@ public class stringi {
     }
     return new ListVector(result);
   }
-  private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
+private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern);
     final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
     final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
@@ -2271,5 +2621,36 @@ public class stringi {
     final StringVector names = new StringArrayVector(new String[] { "start", "end" });
     builder.setColNames(names);
     return builder.build();
+  }
+  private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
+    final StringVector e1 = stri_prepare_arg_string(s1, "e1");
+    final StringVector e2 = stri_prepare_arg_string(s2, "e2");
+    final int length = __recycling_rule(true, e1, e2);
+    final Logical[] result = new Logical[length];
+
+    for (int i = 0; i < length; i++) {
+      if (e1.isElementNA(i) || e2.isElementNA(i)) {
+        result[i] = Logical.NA;
+      } else {
+        final String element1 = e1.getElementAsString(i);
+        final String element2 = e2.getElementAsString(i);
+        result[i] = Logical.valueOf(negate ? !element1.equals(element2) : element1.equals(element2));
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+  private static SEXP __subset_by_logical(StringVector strings, Logical[] which, int found) {
+    final String[] result = new String[found];
+
+    for (int i = 0, j = 0; i < found; j++) {
+      if (Logical.NA.equals(which[j])) {
+        result[i++] = StringVector.NA;
+      } else if (Logical.TRUE.equals(which[j])) {
+        result[i++] = strings.getElementAsString(j);
+      }
+    }
+
+    return new StringArrayVector(result);
   }
 }
