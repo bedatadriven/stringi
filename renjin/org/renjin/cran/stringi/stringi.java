@@ -106,10 +106,113 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_count_charclass(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_count_fixed(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_charclass(SEXP str, SEXP pattern) {
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (!separatorPattern.equals(lastPattern)) {
+          lastPattern = separatorPattern;
+          matcher = new UnicodeSet(separatorPattern);
+        }
+        int found = 0;
+        int previousStart = 0;
+        int beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        if (0 < beginIndex) {
+          while (previousStart < element.length() && beginIndex < element.length()) {
+            found++;
+            final int endIndex = matcher.span(element, beginIndex, UnicodeSet.SpanCondition.CONTAINED);
+            previousStart = endIndex;
+            beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+          }
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_count_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_count_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
+    final int flags = __fixed_flags(opts_fixed, true);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final boolean allows_overlap = (flags & Pattern.COMMENTS) > 0;
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        final int patternLength = separatorPattern.length();
+        final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+        final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+        int found = 0;
+        int previousStart = 0;
+        int beginIndex = elementNormalized.indexOf(patternNormalized);
+        while (-1 < beginIndex) {
+          found++;
+          previousStart = beginIndex + (allows_overlap ? 1 : patternLength);
+          beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
+  public static SEXP stri_count_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        int found = 0;
+        while (matcher.find()) {
+          found++;
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
   public static SEXP stri_datetime_symbols(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_fields(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_now(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
@@ -698,7 +801,7 @@ public class stringi {
                 final StringBuilder replaced = new StringBuilder();
                 int previousStart = 0;
                 int beginIndex = elementNormalized.indexOf(patternNormalized);
-                while (beginIndex != -1) {
+                while (-1 < beginIndex) {
                   replaced.append(element.substring(previousStart, beginIndex));
                   replaced.append(replacement_i);
                   previousStart = beginIndex + patternLength;
