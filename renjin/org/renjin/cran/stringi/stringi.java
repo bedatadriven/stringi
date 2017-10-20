@@ -18,6 +18,7 @@ import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.Types;
 import org.renjin.primitives.matrix.IntMatrixBuilder;
+import org.renjin.primitives.matrix.Matrix;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
 import org.renjin.primitives.sequence.RepDoubleVector;
@@ -1577,8 +1578,117 @@ public class stringi {
   public static SEXP stri_startswith_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_stats_general(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_stats_latex(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_sub(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_sub_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5, SEXP s6) { throw new EvalException("TODO"); }
+  public static SEXP stri_sub(SEXP str, SEXP from, SEXP to, SEXP length) {
+    final SEXP dims = from.getAttribute(Symbols.DIM);
+    if (Types.isMatrix(from) && 2 < ((IntVector) dims).getElementAsInt(1)) {
+      throw new EvalException("argument `from` should be a matrix with 2 columns");
+    }
+    final boolean from_ismatrix = Types.isMatrix(from) && 2 == ((IntVector) dims).getElementAsInt(1);
+    IntVector froms = stri_prepare_arg_integer(from, "from");
+    IntVector tos = IntVector.EMPTY;
+    IntVector lengths = IntVector.EMPTY;
+    if (from_ismatrix) {
+      tos = new ColumnIntVector(new Matrix(froms, 2), 1);
+      froms = new RepIntVector(froms, froms.length() / 2, 1, from.getAttributes());
+    } else if (Types.isNull(length)) {
+      tos = stri_prepare_arg_integer(to, "to");
+    } else {
+      lengths = stri_prepare_arg_integer(length, "length");
+    }
+    final int flen = froms.length();
+    final int tlen = tos.length();
+    final int llen = lengths.length();
+    final boolean uselengths = (tlen == 0) && (llen > 0);
+    final int vectorize = __recycling_rule(true, str, froms, (tlen > llen) ? tos : lengths);
+
+    if (vectorize <= 0) {
+      return StringVector.EMPTY;
+    } else {
+      final String[] result = new String[vectorize];
+      final StringVector strings = __ensure_length(vectorize, stri_prepare_arg_string(str, "str"));
+      for (int i = 0; i < vectorize; i++) {
+        int beginIndex = froms.getElementAsInt(i % flen);
+        int endIndex = uselengths ? lengths.getElementAsInt(i % llen) : tos.getElementAsInt(i % tlen);
+        if (strings.isElementNA(i) || beginIndex == IntVector.NA || endIndex == IntVector.NA) {
+          result[i] = StringVector.NA;
+        } else {
+          if (uselengths && endIndex <= 0) {
+            result[i] = "";
+          } else {
+            final String element = strings.getElementAsString(i);
+            final Range<Integer> bounds = __adjust_bounds(uselengths, beginIndex, endIndex, element);
+            beginIndex = bounds.lowerEndpoint();
+            endIndex = bounds.upperEndpoint();
+            if (beginIndex < endIndex) {
+              result[i] = element.substring(beginIndex, endIndex);
+            } else {
+              result[i] = "";
+            }
+          }
+        }
+      }
+      return new StringArrayVector(result);
+    }
+  }
+  public static SEXP stri_sub_replacement(SEXP str, SEXP from, SEXP to, SEXP length, SEXP omit_na, SEXP value) {
+    final SEXP dims = from.getAttribute(Symbols.DIM);
+    if (Types.isMatrix(from) && 2 < ((IntVector) dims).getElementAsInt(1)) {
+      throw new EvalException("argument `from` should be a matrix with 2 columns");
+    }
+    final boolean from_ismatrix = Types.isMatrix(from) && 2 == ((IntVector) dims).getElementAsInt(1);
+    IntVector froms = stri_prepare_arg_integer(from, "from");
+    IntVector tos = IntVector.EMPTY;
+    IntVector lengths = IntVector.EMPTY;
+    if (from_ismatrix) {
+      tos = new ColumnIntVector(new Matrix(froms, 2), 1);
+      froms = new RepIntVector(froms, froms.length() / 2, 1, from.getAttributes());
+    } else if (Types.isNull(length)) {
+      tos = stri_prepare_arg_integer(to, "to");
+    } else {
+      lengths = stri_prepare_arg_integer(length, "length");
+    }
+    final int flen = froms.length();
+    final int tlen = tos.length();
+    final int llen = lengths.length();
+    final boolean uselengths = (tlen == 0) && (llen > 0);
+    final int vectorize = __recycling_rule(true, str, froms, (tlen > llen) ? tos : lengths);
+
+    if (vectorize <= 0) {
+      return StringVector.EMPTY;
+    } else {
+      final boolean does_omit_na = ((AtomicVector) omit_na).getElementAsLogical(0).toBooleanStrict();
+      final String[] result = new String[vectorize];
+      final StringVector strings = __ensure_length(vectorize, stri_prepare_arg_string(str, "str"));
+      final StringVector values = __ensure_length(vectorize, stri_prepare_arg_string(value, "value"));
+      for (int i = 0; i < vectorize; i++) {
+        int beginIndex = froms.getElementAsInt(i % flen);
+        int endIndex = uselengths ? lengths.getElementAsInt(i % llen) : tos.getElementAsInt(i % tlen);
+        if (strings.isElementNA(i) || values.isElementNA(i) || beginIndex == IntVector.NA || endIndex == IntVector.NA) {
+          if (does_omit_na) {
+            // if strings(i) is NA, this will be NA_STRING as well.
+            result[i] = strings.getElementAsString(i);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else {
+          if (uselengths && endIndex <= 0) {
+            result[i] = "";
+          } else {
+            final String element = strings.getElementAsString(i);
+            final String replacement = values.getElementAsString(i);
+            final Range<Integer> bounds = __adjust_bounds(uselengths, beginIndex, endIndex, element);
+            beginIndex = bounds.lowerEndpoint();
+            endIndex = bounds.upperEndpoint();
+            if (endIndex < beginIndex) {
+              endIndex = beginIndex;
+            }
+            result[i] = element.substring(0, beginIndex) + replacement + element.substring(endIndex, element.length());
+          }
+        }
+      }
+      return new StringArrayVector(result);
+    }
+  }
   public static SEXP stri_subset_charclass(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
@@ -2652,5 +2762,24 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
     }
 
     return new StringArrayVector(result);
+  }
+  private static Range<Integer> __adjust_bounds(boolean uselengths, int beginIndex, int endIndex, String element) {
+    if (uselengths) {
+      endIndex = beginIndex + endIndex - 1;
+      if (beginIndex < 0 && endIndex >= 0) {
+        endIndex = -1;
+      }
+    }
+    if (0 <= beginIndex) {
+      beginIndex = element.offsetByCodePoints(0, beginIndex - 1);
+    } else {
+      beginIndex = element.offsetByCodePoints(element.length(), beginIndex);
+    }
+    if (0 <= endIndex) {
+      endIndex = element.offsetByCodePoints(0, endIndex);
+    } else {
+      endIndex = element.offsetByCodePoints(element.length(), endIndex + 1);
+    }
+    return Range.closedOpen(beginIndex, endIndex);
   }
 }
