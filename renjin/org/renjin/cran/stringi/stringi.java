@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 
 import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
+import org.renjin.primitives.Types;
 import org.renjin.primitives.matrix.IntMatrixBuilder;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
@@ -33,7 +34,6 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
 import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
-import org.renjin.sexp.Null;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
@@ -493,7 +493,7 @@ public class stringi {
     return new LogicalArrayVector(result);
   }
   public static SEXP stri_join(SEXP strlist, SEXP sep, SEXP collapse, SEXP ignore_null) {
-    if (Null.INSTANCE.equals(collapse)) {
+    if (Types.isNull(collapse)) {
       return __join_no_collapse(strlist, sep, ignore_null);
     } else {
       final boolean ignore_empty = ((AtomicVector) ignore_null).getElementAsLogical(0).toBooleanStrict();
@@ -1712,7 +1712,7 @@ public class stringi {
     return new StringArrayVector(result);
   }
   public static SEXP stri_trans_tolower(SEXP str, SEXP locale) {
-    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
     final int length = str.length();
     final String[] result = new String[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -1732,7 +1732,7 @@ public class stringi {
     return new StringArrayVector(result);
   }
   public static SEXP stri_trans_toupper(SEXP str, SEXP locale) {
-    final Locale language = Null.INSTANCE.equals(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+    final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
     final int length = str.length();
     final String[] result = new String[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2243,7 +2243,7 @@ public class stringi {
     throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
   }
   private static BreakIterator __open_break_iterator(SEXP opts_brkiter, String defaultType) {
-    if (Null.INSTANCE.equals(opts_brkiter)) {
+    if (Types.isNull(opts_brkiter)) {
       // use default locale
       // use default type
       // use no skip rules
@@ -2354,7 +2354,7 @@ public class stringi {
     }
   }
   private static SEXP __join2_with_collapse(SEXP s1, SEXP s2, SEXP collapse) {
-    if (Null.INSTANCE.equals(collapse)) {
+    if (Types.isNull(collapse)) {
       return stri_join2(s1, s2);
     }
     final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
