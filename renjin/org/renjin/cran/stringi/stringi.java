@@ -1726,8 +1726,182 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_wrap(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_wrap(SEXP str, SEXP width, SEXP cost_exponent, SEXP indent, SEXP exdent, SEXP prefix, SEXP initial, SEXP whitespace_only,
+      SEXP use_length, SEXP locale) {
+    final int indent_val = indent.asInt();
+    if (indent_val < 0) {
+      throw new EvalException("argument `indent`: expected a positive numeric value");
+    }
+    final int exdent_val = exdent.asInt();
+    if (exdent_val < 0) {
+      throw new EvalException("argument `exdent`: expected a positive numeric value");
+    }
+    final String prefix_val = prefix.asString();
+    final String initial_val = initial.asString();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final int length = strings.length();
+    final StringVector[] result = new StringVector[length];
+    if (prefix_val == StringVector.NA || initial_val == StringVector.NA) {
+      for (int i = 0; i < length; i++) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+      }
+      return new ListVector(result);
+    } else {
+      final UnicodeSet whitespaces = new UnicodeSet("\\p{WHITE_SPACE}");
+      final int width_val = Math.max(0, width.asInt());
+      final double exponent_val = cost_exponent.asReal();
+      final boolean does_use_length = use_length.asLogical().toBooleanStrict();
+      final boolean breaks_on_whitespace_only = whitespace_only.asLogical().toBooleanStrict();
+      final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+      final BreakIterator brkiter = BreakIterator.getLineInstance(language);
+      // prepare indent/exdent/prefix/initial stuff:
+      // 1st line, 1st para (i==0, u==0): initial+indent
+      // nth line, 1st para (i==0, u> 0): prefix +exdent
+      // 1st line, nth para (i> 0, u==0): prefix +indent
+      // nth line, nth para (i> 0, u> 0): prefix +exdent
+      final WrapLine ii = new WrapLine(initial_val, indent_val);
+      final WrapLine pi = new WrapLine(prefix_val, indent_val);
+      final WrapLine pe = new WrapLine(prefix_val, exdent_val);
 
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          result[i] = StringVector.valueOf(StringVector.NA);
+        } else {
+          final LinkedList<Integer> occurrences = new LinkedList<>();
+          final String element = strings.getElementAsString(i);
+          final int elemlen = element.length();
+          brkiter.setText(element);
+          int match = brkiter.first();
+          while (match != BreakIterator.DONE) {
+            if (breaks_on_whitespace_only) {
+              if (0 < match && match < elemlen) {
+                if (whitespaces.contains(element.codePointAt(match - 1))) {
+                  occurrences.add(match);
+                }
+              } else {
+                occurrences.add(match);
+              }
+            } else {
+              occurrences.add(match);
+            }
+            match = brkiter.next();
+          }
+          if (occurrences.size() <= 1) {
+            result[i] = StringVector.valueOf(element);
+          } else {
+            occurrences.removeFirst(); // only interested in end positions
+            final int nwords = occurrences.size();
+            // convert occurrences in order to obtain end positions (in a string) of each "words",
+            final int[] end_pos_orig = new int[nwords];
+            // we'll get the end positions without trailing whitespaces
+            final int[] end_pos_trim = new int[nwords];
+            // we'll get the total widths/number of code points in each "word"
+            final int[] widths_orig = new int[nwords];
+            // we'll get the total widths/number of code points without trailing whitespaces
+            final int[] widths_trim = new int[nwords];
+            int k = 0;
+            for (Integer position : occurrences) {
+              end_pos_orig[k++] = position;
+            }
+            int j = 0;
+            int cur_block = 0;
+            int cur_width_orig = 0;
+            int cur_width_trim = 0;
+            int cur_count_orig = 0;
+            int cur_count_trim = 0;
+            int cur_end_pos_trim = 0;
+            while (j < elemlen) {
+              int jlast = j;
+              final int c = element.codePointAt(j);
+              j += Character.charCount(c);
+              // if (linebreaks.contains(c))
+              // throw StriException(MSG__NEWLINE_FOUND);
+
+              cur_width_orig += __width_char(c);
+              ++cur_count_orig;
+              if (whitespaces.contains(c)) {
+                // NEW: trim just one white space at the end:
+                cur_width_trim = __width_char(c);
+                cur_count_trim = 1;
+                cur_end_pos_trim = jlast;
+              } else {
+                cur_width_trim = 0;
+                cur_count_trim = 0;
+                cur_end_pos_trim = j;
+              }
+
+              if (j >= elemlen || end_pos_orig[cur_block] <= j) {
+                // we'll start a new block in a moment
+                if (does_use_length) {
+                  widths_orig[cur_block] = cur_count_orig;
+                  widths_trim[cur_block] = cur_count_orig - cur_count_trim;
+                } else {
+                  widths_orig[cur_block] = cur_width_orig;
+                  widths_trim[cur_block] = cur_width_orig - cur_width_trim;
+                }
+                end_pos_trim[cur_block] = cur_end_pos_trim;
+                cur_block++;
+                cur_width_orig = 0;
+                cur_width_trim = 0;
+                cur_count_orig = 0;
+                cur_count_trim = 0;
+                cur_end_pos_trim = j;
+              }
+            }
+            // do wrap
+            final int add_para_1 = (does_use_length) ? ((i == 0) ? ii.count : pi.count) : ((i == 0) ? ii.width : pi.width);
+            final int add_para_n = (does_use_length) ? pe.count : pe.width;
+            // @formatter:off
+            Deque<Integer> wrap_after = (exponent_val <= 0.0)
+                ? __wrap_greedy(nwords, width_val, widths_orig, widths_trim, add_para_1, add_para_n)
+                : __wrap_dynamic(nwords, width_val, exponent_val, widths_orig, widths_trim, add_para_1, add_para_n);
+            // @formatter:on
+            // wrap_after.size() line breaks => wrap_after.size()+1 lines
+            final int nlines = wrap_after.size() + 1;
+            final String[] answer = new String[nlines];
+            final StringBuilder sb = new StringBuilder();
+            int previousStart = 0;
+            int u = 0;
+            for (Integer after : wrap_after) {
+              final int endIndex = end_pos_trim[after];
+              sb.setLength(0);
+              // @formatter:off
+              if (i == 0 && u == 0)     sb.append(ii.text);
+              else if (i > 0 && u == 0) sb.append(pi.text);
+              else                      sb.append(pe.text);
+              // @formatter:on
+              sb.append(element.substring(previousStart, endIndex));
+              answer[u++] = sb.toString();
+              previousStart = end_pos_orig[after];
+            }
+            // last line goes here:
+            sb.setLength(0);
+            // @formatter:off
+            if (i == 0 && nlines-1 == 0)     sb.append(ii.text);
+            else if (i > 0 && nlines-1 == 0) sb.append(pi.text);
+            else                             sb.append(pe.text);
+            // @formatter:on
+            sb.append(element.substring(previousStart, end_pos_trim[nwords - 1]));
+            answer[nlines-1] = sb.toString();
+            result[i] = new StringArrayVector(answer);
+          }
+        }
+      }
+
+      return new ListVector(result);
+    }
+  }
+
+  private static class WrapLine {
+    protected final String text;
+    protected final int count;
+    protected final int width;
+    protected WrapLine(String text, int added) {
+      this.text = text;
+      this.count = text.codePointCount(0, text.length()) + added;
+      this.width = __width_string(text) + added;
+    }
+  }
   private enum ReplaceType {
     ALL, FIRST, LAST;
     boolean isAll() {
@@ -2397,5 +2571,99 @@ public class stringi {
     }
 
     return new StringArrayVector(result);
+  }
+  private static Deque<Integer> __wrap_greedy(int nwords, int width_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
+    final Deque<Integer> wrap_after = new LinkedList<>();
+    int len = add_1 + widths_orig[0];
+    for (int j = 1; j < nwords; j++) {
+      if (width_val < len + widths_trim[j]) {
+        len = add_n + widths_orig[j];
+        wrap_after.addLast(j - 1);
+      } else {
+        len += widths_orig[j];
+      }
+    }
+    return wrap_after;
+  }
+  private static Deque<Integer> __wrap_dynamic(int nwords, int width_val, double exponent_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
+    final Deque<Integer> wrap_after = new LinkedList<>();
+    // where cost[i][j] == cost of printing words i..j in a single line, i<=j
+    final double[][] cost = new double[nwords][nwords];
+    // calculate costs:
+    // there is some "punishment" for leaving blanks at the end of each line
+    // (number of "blank" codepoints ^ exponent_val)
+    for (int i = 0; i < nwords; i++) {
+      int sum = 0;
+      for (int j = i; j < nwords; j++) {
+        if (j > i) {
+          if (cost[i][j - 1] < 0.0) { // already Inf
+            cost[i][j] = -1.0; // Inf
+            continue;
+          } else {
+            sum -= widths_trim[j - 1];
+            sum += widths_orig[j - 1];
+          }
+        }
+        sum += widths_trim[j];
+        int ct = width_val - sum;
+        if (i == 0)
+          ct -= add_1;
+        else
+          ct -= add_n;
+
+        if (j == nwords - 1) { // last line == cost 0
+          if (j == i || ct >= 0)
+            cost[i][j] = 0.0;
+          else
+            cost[i][j] = -1.0/* Inf */;
+        } else if (j == i) {
+          // some words don't fit in a line at all -> cost 0.0
+          cost[i][j] = (ct < 0) ? 0.0 : Math.pow(ct, exponent_val);
+        } else {
+          cost[i][j] = (ct < 0) ? -1.0/* "Inf" */ : Math.pow(ct, exponent_val);
+        }
+      }
+    }
+    // f[j] == total cost of (optimally) printing words 0..j
+    final double[] f = new double[nwords];
+    // where[i][j] == false iff we don't wrap after i-th word, i<=j when (optimally) printing words 0..j
+    final boolean[][] where = new boolean[nwords][nwords];
+    for (int j = 0; j < nwords; ++j) {
+      if (cost[0][j] >= 0.0) {
+        // no breaking needed: words 0..j fit in one line
+        f[j] = cost[0][j];
+      } else {
+        // let i = optimal way of printing of words 0..i + printing i+1..j
+        int i = 0;
+        while (i <= j) {
+          if (cost[i + 1][j] >= 0.0) {
+            break;
+          }
+          ++i;
+        }
+        double best_i = f[i] + cost[i + 1][j];
+        for (int k = i + 1; k < j; ++k) {
+          if (cost[k + 1][j] >= 0.0) {
+            double best_cur = f[k] + cost[k + 1][j];
+            if (best_cur < best_i) {
+              best_i = best_cur;
+              i = k;
+            }
+          }
+        }
+        for (int k = 0; k < i; ++k) {
+          where[k][j] = where[k][i];
+        }
+        where[i][j] = true;
+        f[j] = best_i;
+      }
+    }
+    // result is in the last row of where...
+    for (int k = 0; k < nwords; ++k) {
+      if (where[k][nwords - 1]) {
+        wrap_after.addLast(k);
+      }
+    }
+    return wrap_after;
   }
 }
