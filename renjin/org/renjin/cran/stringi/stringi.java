@@ -3,6 +3,13 @@ package org.renjin.cran.stringi;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,6 +22,7 @@ import java.util.regex.Pattern;
 
 import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
+import org.renjin.primitives.Types;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
 import org.renjin.primitives.sequence.RepDoubleVector;
@@ -31,10 +39,12 @@ import org.renjin.sexp.Logical;
 import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
 import org.renjin.sexp.Null;
+import org.renjin.sexp.RawVector;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Symbols;
+import org.renjin.sexp.Vector;
 
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UCharacter.EastAsianWidth;
@@ -407,11 +417,139 @@ public class stringi {
     }
   }
   public static SEXP stri_enc_toutf32(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_encode(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_encode(SEXP str, SEXP from, SEXP to, SEXP to_raw) {
+    final boolean returns_raw = ((AtomicVector) to_raw).asLogical().toBooleanStrict();
+    final Vector prepared = __prepare_arg_list_raw(str, "str");
+    final int length = prepared.length();
+    if (length <= 0) {
+      return returns_raw ? ListVector.EMPTY : StringVector.EMPTY;
+    } else {
+      String selected_from = from.asString();
+      if (selected_from == StringVector.NA) {
+        selected_from = "UTF-16"; // in Java, String is always stored internally as UTF-16
+      }
+      final String selected_to = to.asString();
+      final SEXP[] raws = new SEXP[returns_raw ? length : 0];
+      final String[] encoded = new String[returns_raw ? 0 : length];
+      // @formatter:off
+      final CharsetEncoder encoder = Charset.forName(selected_to).newEncoder()
+          .onMalformedInput(CodingErrorAction.REPLACE)
+          .onUnmappableCharacter(CodingErrorAction.REPLACE)
+          .reset();
+      // @formatter:on
+
+      if (prepared instanceof ListVector) {
+        final ListVector list = (ListVector) prepared;
+        final Charset fromcs = Charset.forName(selected_from);
+        // @formatter:off
+        final CharsetDecoder decoder = fromcs.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPLACE)
+            .onUnmappableCharacter(CodingErrorAction.REPLACE)
+            .reset();
+        // @formatter:on
+        for (int i = 0; i < length; i++) {
+          final SEXP entry = list.getElementAsSEXP(i);
+          if (Types.isNull(entry)) {
+            if (returns_raw) {
+              raws[i] = Null.INSTANCE;
+            } else {
+              encoded[i] = StringVector.NA;
+            }
+          } else {
+            final RawVector raw = (RawVector) entry;
+            if (returns_raw) {
+              try {
+                final CharBuffer chars = decoder.decode(ByteBuffer.wrap(raw.toByteArray()));
+                final ByteBuffer converted = encoder.encode(chars);
+                raws[i] = new RawVector(converted.array());
+              } catch (CharacterCodingException cce) {
+                throw new EvalException(cce);
+              }
+            } else {
+              encoded[i] = new String(raw.toByteArray(), fromcs);
+            }
+          }
+        }
+      } else if (prepared instanceof StringVector) {
+        final StringVector strings = (StringVector) prepared;
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            if (returns_raw) {
+              raws[i] = Null.INSTANCE;
+            } else {
+              encoded[i] = StringVector.NA;
+            }
+          } else {
+            final String element = strings.getElementAsString(i);
+            if (returns_raw) {
+              try {
+                final CharBuffer chars = CharBuffer.wrap(element);
+                final ByteBuffer converted = encoder.encode(chars);
+                raws[i] = new RawVector(converted.array());
+              } catch (CharacterCodingException cce) {
+                throw new EvalException(cce);
+              }
+            } else {
+              encoded[i] = element; // in Java, String is always stored internally as UTF-16
+            }
+          }
+        }
+      }
+
+      return returns_raw ? new ListVector(raws) : new StringArrayVector(encoded);
+    }
+  }
   public static SEXP stri_endswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_escape_unicode(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_escape_unicode(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        sb.setLength(0);
+        final String element = strings.getElementAsString(i);
+        for (int j = 0; j < element.length(); j++) {
+          final int cp = element.codePointAt(j);
+          if (cp <= 126) {
+            switch (cp) {
+            // @formatter:off
+//            case 0x07: sb.append("\\a"); break; // Java doesn't know that
+            case 0x08: sb.append("\\b"); break;
+            case 0x09: sb.append("\\t"); break;
+            case 0x0a: sb.append("\\n"); break;
+//            case 0x0b: sb.append("\\v"); break; // Java doesn't know that
+            case 0x0c: sb.append("\\f"); break;
+            case 0x0d: sb.append("\\r"); break;
+//            case 0x1b: sb.append("\\e"); break; // R doesn't know that
+            case 0x22: sb.append("\\\""); break;
+            case 0x27: sb.append("\\'"); break;
+            case 0x5c: sb.append("\\\\"); break;
+            // @formatter:on
+            default:
+              if (cp >= 32 && cp <= 126) { // printable characters
+                sb.appendCodePoint(cp);
+              } else {
+                sb.append(String.format("\\u%04x", cp));
+              }
+            }
+          } else if (cp <= 0xffff) {
+            sb.append(String.format("\\u%04x", cp));
+          } else {
+            sb.append(String.format("\\U%08x", cp));
+          }
+        }
+        result[i] = sb.toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_extract_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_all_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
@@ -1551,7 +1689,26 @@ public class stringi {
   public static SEXP stri_trim_right(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.TRAILING);
   }
-  public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_unescape_unicode(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        if (element.length() == 0) {
+          result[i] = element;
+        } else {
+          result[i] = __unescape_unicode(element);
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_unique(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_width(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -1585,11 +1742,46 @@ public class stringi {
   }
 
   // @formatter:off
-  private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
+  private static final UnicodeSet COMBINING_MARKS = new UnicodeSet()
       .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
       .add(0x20D0, 0x20FF).add(0xFE20, 0xFE2F); // combining marks on symbols
+  // A pattern that matches an escape.
+  // What follows the escape indicator is captured by group 1=character 2=octal 3=Unicode.
+  private static final Pattern ESCAPES = Pattern
+      .compile("\\\\(?:(b|t|n|f|r|\\\"|\\\'|\\\\)|((?:[0-3]?[0-7])?[0-7])|[uU]+(\\p{XDigit}{4,8}))");
   // @formatter:on
 
+  private static String __unescape_unicode(CharSequence encoded) {
+    // based on code found in answer to StackOverflow question
+    // https://stackoverflow.com/questions/3537706/how-to-unescape-a-java-string-literal-in-java#answer-13278219
+    final Matcher matcher = ESCAPES.matcher(encoded);
+    final StringBuilder decoded = new StringBuilder();
+      // Find each escape of the encoded string in succession.
+    int previousStart = 0;
+      while (matcher.find()) {
+      decoded.append(encoded.subSequence(previousStart, matcher.start()));
+      if (matcher.start(1) >= 0) { // Decode a character escape.
+        final char ch = matcher.group(1).charAt(0);
+        switch (ch) {
+        // @formatter:off
+        case 'b': decoded.append('\b'); break;
+        case 'f': decoded.append('\f'); break;
+        case 'n': decoded.append('\n'); break;
+        case 'r': decoded.append('\r'); break;
+        case 't': decoded.append('\t'); break;
+        default: decoded.append(ch);
+        // @formatter:on
+        }
+      } else if (matcher.start(2) >= 0) { // Decode an octal escape.
+        decoded.appendCodePoint(Integer.parseInt(matcher.group(2), 8));
+      } else /* if (matcher.start(3) >= 0) */ { // Decode a Unicode escape.
+        decoded.appendCodePoint(Integer.parseInt(matcher.group(3), 16));
+          }
+      previousStart = matcher.end();
+      }
+    decoded.append(encoded.subSequence(previousStart, encoded.length()));
+    return decoded.toString();
+  }
   /**
    * Calculate the length of the output vector when applying a vectorized operation on >= 2 vectors
    *
@@ -2137,6 +2329,24 @@ public class stringi {
       }
 
       return new StringArrayVector(result);
+    }
+  }
+  private static Vector __prepare_arg_list_raw(SEXP x, String name) {
+    if (name == null) {
+      name = "<noname>";
+    }
+    if (Types.isNull(x) || Types.isRaw(x)) {
+      return new ListVector(x);
+    } else if (x instanceof ListVector) {
+      final ListVector list = (ListVector) x;
+      for (SEXP entry : list) {
+        if (!(Types.isNull(entry) || Types.isRaw(entry))) {
+          throw new EvalException("all elements in `" + name + "` should be raw vectors");
+        }
+      }
+      return list;
+    } else {
+      return stri_prepare_arg_string(x, name);
     }
   }
   private static SEXP __prepare_arg_list_ignore_empty(SEXP x, boolean ignore_empty) {
