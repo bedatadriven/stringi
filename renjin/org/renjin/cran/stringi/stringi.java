@@ -3,11 +3,12 @@ package org.renjin.cran.stringi;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.text.Normalizer;
 import java.text.StringCharacterIterator;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -46,6 +47,7 @@ import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.text.BreakIterator;
 import com.ibm.icu.text.CaseMap;
 import com.ibm.icu.text.Collator;
+import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.RuleBasedBreakIterator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.text.StringSearch;
@@ -341,8 +343,88 @@ public class stringi {
       return new StringArrayVector(result);
     }
   }
-  public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_duplicated(SEXP str, SEXP fromLast, SEXP opts_collator) {
+    final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
+    final int length = str.length();
+    final boolean[] result = new boolean[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    boolean no_na = true;
+    if (fromEnd) {
+      for (int i = length - 1; 0 <= i; i--) {
+        if (strings.isElementNA(i)) {
+          result[i] = true;
+          if (no_na) {
+            result[i] = false;
+            no_na = false;
+          }
+        } else {
+          result[i] = !unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+        }
+      }
+    } else {
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          result[i] = true;
+          if (no_na) {
+            result[i] = false;
+            no_na = false;
+          }
+        } else {
+          result[i] = !unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+        }
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+  public static SEXP stri_duplicated_any(SEXP str, SEXP fromLast, SEXP opts_collator) {
+    final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    int result = 0;
+    boolean no_na = true;
+    if (fromEnd) {
+      for (int i = length - 1; 0 <= i; i--) {
+        if (strings.isElementNA(i)) {
+          if (no_na) {
+            no_na = false;
+          } else {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        } else {
+          if (!unique.add(new CollatedString(collator, strings.getElementAsString(i)))) {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        }
+      }
+    } else {
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          if (no_na) {
+            no_na = false;
+          } else {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        } else {
+          if (!unique.add(new CollatedString(collator, strings.getElementAsString(i)))) {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        }
+      }
+    }
+
+    return IntVector.valueOf(result);
+  }
   public static SEXP stri_enc_detect(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_detect2(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_isutf8(SEXP s1) { throw new EvalException("TODO"); }
@@ -1072,8 +1154,12 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_order(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
+    return __order_or_sort(str, decreasing, na_last, opts_collator, true);
+  }
+  public static SEXP stri_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
+    return __order_or_sort(str, decreasing, na_last, opts_collator, false);
+  }
   public static SEXP stri_pad(SEXP str, SEXP width, SEXP side, SEXP pad, SEXP use_length) {
     if (!side.getTypeName().equals(IntVector.TYPE_NAME) || side.length() != 1) {
       throw new EvalException("incorrect argument");
@@ -1858,33 +1944,37 @@ public class stringi {
   public static SEXP stri_timezone_info(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_char(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_isnfc(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFC);
+    return __trans_isnf(str, Normalizer2.getNFCInstance());
   }
   public static SEXP stri_trans_isnfd(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFD);
+    return __trans_isnf(str, Normalizer2.getNFDInstance());
   }
   public static SEXP stri_trans_isnfkc(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFKC);
+    return __trans_isnf(str, Normalizer2.getNFKCInstance());
   }
   public static SEXP stri_trans_isnfkd(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFKD);
+    return __trans_isnf(str, Normalizer2.getNFKDInstance());
   }
-  public static SEXP stri_trans_isnfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_isnfkc_casefold(SEXP str) {
+    return __trans_isnf(str, Normalizer2.getNFKCCasefoldInstance());
+  }
   public static SEXP stri_trans_general(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_nfc(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFC);
+    return __trans_nf(str, Normalizer2.getNFCInstance());
   }
   public static SEXP stri_trans_nfd(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFD);
+    return __trans_nf(str, Normalizer2.getNFDInstance());
   }
   public static SEXP stri_trans_nfkc(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFKC);
+    return __trans_nf(str, Normalizer2.getNFKCInstance());
   }
   public static SEXP stri_trans_nfkd(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFKD);
+    return __trans_nf(str, Normalizer2.getNFKDInstance());
   }
-  public static SEXP stri_trans_nfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_nfkc_casefold(SEXP str) {
+    return __trans_nf(str, Normalizer2.getNFKCCasefoldInstance());
+  }
   public static SEXP stri_trans_totitle(SEXP str, SEXP opts_brkiter) {
     final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "word");
     final int length = str.length();
@@ -1955,7 +2045,31 @@ public class stringi {
     return __trim_left_right(str, pattern, TrimOption.TRAILING);
   }
   public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_unique(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_unique(SEXP str, SEXP opts_collator) {
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    boolean no_na = true;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        if (no_na) {
+          unique.add(new CollatedString(collator, StringVector.NA));
+          no_na = false;
+        }
+      } else {
+        unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+      }
+    }
+    final String[] result = new String[unique.size()];
+    int j = 0;
+    for (CollatedString cs : unique) {
+      result[j++] = cs.str;
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_width(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final int length = strings.length();
@@ -1986,7 +2100,32 @@ public class stringi {
       return LAST.equals(this);
     }
   }
+  private static final class CollatedString {
+    private final RuleBasedCollator collator;
+    private final String str;
+    private final int hash;
 
+    private CollatedString(RuleBasedCollator collator, String str) {
+      super();
+      this.collator = collator;
+      this.str = str;
+      // return the same hash for decomposed strings and let collator decide for equals
+      this.hash = Normalizer2.getNFKDInstance().normalize(str).toUpperCase().hashCode();
+    }
+    @Override
+    public boolean equals(Object obj) {
+      if (obj != null && obj instanceof CollatedString) {
+        final int cmp = collator.compare(str, ((CollatedString) obj).str);
+        return 0 == cmp;
+      } else {
+        return false;
+      }
+    }
+    @Override
+    public int hashCode() {
+      return hash;
+    }
+  }
   // @formatter:off
   private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
       .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
@@ -2392,7 +2531,7 @@ public class stringi {
     /* any other characters have width 1 */
     return 1;
   }
-  private static SEXP __trans_isnf(SEXP str, Normalizer.Form form) {
+  private static SEXP __trans_isnf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final Logical[] result = new Logical[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2401,13 +2540,13 @@ public class stringi {
       if (strings.isElementNA(i)) {
         result[i] = Logical.NA;
       } else {
-        result[i] = Logical.valueOf(Normalizer.isNormalized(strings.getElementAsString(i), form));
+        result[i] = Logical.valueOf(normalizer.isNormalized(strings.getElementAsString(i)));
       }
     }
 
     return new LogicalArrayVector(result);
   }
-  private static SEXP __trans_nf(SEXP str, Normalizer.Form form) {
+  private static SEXP __trans_nf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final String[] result = new String[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2416,7 +2555,7 @@ public class stringi {
       if (strings.isElementNA(i)) {
         result[i] = StringVector.NA;
       } else {
-        result[i] = Normalizer.normalize(strings.getElementAsString(i), form);
+        result[i] = normalizer.normalize(strings.getElementAsString(i));
       }
     }
 
@@ -2484,7 +2623,7 @@ public class stringi {
         }
         final String name = names.getElementAsString(i);
         if ("locale".equals(name)) {
-          locale = Locale.forLanguageTag(options.getElementAsString(i));
+          locale = Locale.forLanguageTag(options.getElementAsString(i).replace('_', '-'));
         } else if ("strength".equals(name)) {
           strength = options.getElementAsInt(i) - 1;
           if (strength < Collator.PRIMARY) {
@@ -2816,6 +2955,68 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
     builder.setColNames(names);
     return builder.build();
   }
+  private static SEXP __order_or_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator, boolean order) {
+    final boolean desc = ((AtomicVector) decreasing).getElementAsLogical(0).toBooleanStrict();
+    final Logical lastNA = stri_prepare_arg_logical(na_last, "na_last").getElementAsLogical(0);
+    final boolean isDefinedLastNA = !Logical.NA.equals(lastNA);
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final Integer[] ordered = new Integer[length];
+    final LinkedList<Integer> nas = new LinkedList<>();
+
+    int notna = 0;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        if (isDefinedLastNA) {
+          nas.add(i);
+        }
+      } else {
+        ordered[notna++] = i;
+      }
+    }
+    Arrays.sort(ordered, new Comparator<Integer>() {
+      @Override
+      public int compare(Integer i1, Integer i2) {
+        final int cmp = collator.compare(strings.getElementAsString(i1), strings.getElementAsString(i2));
+        return desc ? -cmp : cmp;
+      }
+    });
+    if (order) {
+      final int[] result = new int[notna + nas.size()];
+      int j = 0;
+      if (Logical.FALSE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = 1 + index; // 1-based indices
+        }
+      }
+      for (int k = 0; k < notna; k++) {
+        result[j++] = 1 + ordered[k]; // 1-based indices
+      }
+      if (Logical.TRUE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = 1 + index; // 1-based indices
+        }
+      }
+      return new IntArrayVector(result);
+    } else {
+      final String[] result = new String[notna + nas.size()];
+      int j = 0;
+      if (Logical.FALSE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = StringVector.NA;
+        }
+      }
+      for (int k = 0; k < notna; k++) {
+        result[j++] = strings.getElementAsString(ordered[k]);
+      }
+      if (Logical.TRUE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = StringVector.NA;
+        }
+      }
+      return new StringArrayVector(result);
+    }
   private static SEXP __extract_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern);
     final String[] result = new String[length];
