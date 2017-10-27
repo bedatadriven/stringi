@@ -3,6 +3,14 @@ package org.renjin.cran.stringi;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
+import java.text.Normalizer;
 import java.text.StringCharacterIterator;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,10 +44,13 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.Logical;
 import org.renjin.sexp.LogicalArrayVector;
 import org.renjin.sexp.LogicalVector;
+import org.renjin.sexp.Null;
+import org.renjin.sexp.RawVector;
 import org.renjin.sexp.SEXP;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Symbols;
+import org.renjin.sexp.Vector;
 
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UCharacter.EastAsianWidth;
@@ -530,11 +541,139 @@ public class stringi {
     }
   }
   public static SEXP stri_enc_toutf32(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_encode(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_encode(SEXP str, SEXP from, SEXP to, SEXP to_raw) {
+    final boolean returns_raw = ((AtomicVector) to_raw).asLogical().toBooleanStrict();
+    final Vector prepared = __prepare_arg_list_raw(str, "str");
+    final int length = prepared.length();
+    if (length <= 0) {
+      return returns_raw ? ListVector.EMPTY : StringVector.EMPTY;
+    } else {
+      String selected_from = from.asString();
+      if (selected_from == StringVector.NA) {
+        selected_from = "UTF-16"; // in Java, String is always stored internally as UTF-16
+      }
+      final String selected_to = to.asString();
+      final SEXP[] raws = new SEXP[returns_raw ? length : 0];
+      final String[] encoded = new String[returns_raw ? 0 : length];
+      // @formatter:off
+      final CharsetEncoder encoder = Charset.forName(selected_to).newEncoder()
+          .onMalformedInput(CodingErrorAction.REPLACE)
+          .onUnmappableCharacter(CodingErrorAction.REPLACE)
+          .reset();
+      // @formatter:on
+
+      if (prepared instanceof ListVector) {
+        final ListVector list = (ListVector) prepared;
+        final Charset fromcs = Charset.forName(selected_from);
+        // @formatter:off
+        final CharsetDecoder decoder = fromcs.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPLACE)
+            .onUnmappableCharacter(CodingErrorAction.REPLACE)
+            .reset();
+        // @formatter:on
+        for (int i = 0; i < length; i++) {
+          final SEXP entry = list.getElementAsSEXP(i);
+          if (Types.isNull(entry)) {
+            if (returns_raw) {
+              raws[i] = Null.INSTANCE;
+            } else {
+              encoded[i] = StringVector.NA;
+            }
+          } else {
+            final RawVector raw = (RawVector) entry;
+            if (returns_raw) {
+              try {
+                final CharBuffer chars = decoder.decode(ByteBuffer.wrap(raw.toByteArray()));
+                final ByteBuffer converted = encoder.encode(chars);
+                raws[i] = new RawVector(converted.array());
+              } catch (CharacterCodingException cce) {
+                throw new EvalException(cce);
+              }
+            } else {
+              encoded[i] = new String(raw.toByteArray(), fromcs);
+            }
+          }
+        }
+      } else if (prepared instanceof StringVector) {
+        final StringVector strings = (StringVector) prepared;
+        for (int i = 0; i < length; i++) {
+          if (strings.isElementNA(i)) {
+            if (returns_raw) {
+              raws[i] = Null.INSTANCE;
+            } else {
+              encoded[i] = StringVector.NA;
+            }
+          } else {
+            final String element = strings.getElementAsString(i);
+            if (returns_raw) {
+              try {
+                final CharBuffer chars = CharBuffer.wrap(element);
+                final ByteBuffer converted = encoder.encode(chars);
+                raws[i] = new RawVector(converted.array());
+              } catch (CharacterCodingException cce) {
+                throw new EvalException(cce);
+              }
+            } else {
+              encoded[i] = element; // in Java, String is always stored internally as UTF-16
+            }
+          }
+        }
+      }
+
+      return returns_raw ? new ListVector(raws) : new StringArrayVector(encoded);
+    }
+  }
   public static SEXP stri_endswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_escape_unicode(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_escape_unicode(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final StringBuilder sb = new StringBuilder();
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        sb.setLength(0);
+        final String element = strings.getElementAsString(i);
+        for (int j = 0; j < element.length(); j++) {
+          final int cp = element.codePointAt(j);
+          if (cp <= 126) {
+            switch (cp) {
+            // @formatter:off
+//            case 0x07: sb.append("\\a"); break; // Java doesn't know that
+            case 0x08: sb.append("\\b"); break;
+            case 0x09: sb.append("\\t"); break;
+            case 0x0a: sb.append("\\n"); break;
+//            case 0x0b: sb.append("\\v"); break; // Java doesn't know that
+            case 0x0c: sb.append("\\f"); break;
+            case 0x0d: sb.append("\\r"); break;
+//            case 0x1b: sb.append("\\e"); break; // R doesn't know that
+            case 0x22: sb.append("\\\""); break;
+            case 0x27: sb.append("\\'"); break;
+            case 0x5c: sb.append("\\\\"); break;
+            // @formatter:on
+            default:
+              if (cp >= 32 && cp <= 126) { // printable characters
+                sb.appendCodePoint(cp);
+              } else {
+                sb.append(String.format("\\u%04x", cp));
+              }
+            }
+          } else if (cp <= 0xffff) {
+            sb.append(String.format("\\u%04x", cp));
+          } else {
+            sb.append(String.format("\\U%08x", cp));
+          }
+        }
+        result[i] = sb.toString();
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_extract_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_all_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
@@ -2188,7 +2327,26 @@ public class stringi {
   public static SEXP stri_trim_right(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.TRAILING);
   }
-  public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_unescape_unicode(SEXP str) {
+    final int length = str.length();
+    final String[] result = new String[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        if (element.length() == 0) {
+          result[i] = element;
+        } else {
+          result[i] = __unescape_unicode(element);
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_unique(SEXP str, SEXP opts_collator) {
     final int length = str.length();
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2230,8 +2388,182 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_wrap(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_wrap(SEXP str, SEXP width, SEXP cost_exponent, SEXP indent, SEXP exdent, SEXP prefix, SEXP initial, SEXP whitespace_only,
+      SEXP use_length, SEXP locale) {
+    final int indent_val = indent.asInt();
+    if (indent_val < 0) {
+      throw new EvalException("argument `indent`: expected a positive numeric value");
+    }
+    final int exdent_val = exdent.asInt();
+    if (exdent_val < 0) {
+      throw new EvalException("argument `exdent`: expected a positive numeric value");
+    }
+    final String prefix_val = prefix.asString();
+    final String initial_val = initial.asString();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final int length = strings.length();
+    final StringVector[] result = new StringVector[length];
+    if (prefix_val == StringVector.NA || initial_val == StringVector.NA) {
+      for (int i = 0; i < length; i++) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+      }
+      return new ListVector(result);
+    } else {
+      final UnicodeSet whitespaces = new UnicodeSet("\\p{WHITE_SPACE}");
+      final int width_val = Math.max(0, width.asInt());
+      final double exponent_val = cost_exponent.asReal();
+      final boolean does_use_length = use_length.asLogical().toBooleanStrict();
+      final boolean breaks_on_whitespace_only = whitespace_only.asLogical().toBooleanStrict();
+      final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
+      final BreakIterator brkiter = BreakIterator.getLineInstance(language);
+      // prepare indent/exdent/prefix/initial stuff:
+      // 1st line, 1st para (i==0, u==0): initial+indent
+      // nth line, 1st para (i==0, u> 0): prefix +exdent
+      // 1st line, nth para (i> 0, u==0): prefix +indent
+      // nth line, nth para (i> 0, u> 0): prefix +exdent
+      final WrapLine ii = new WrapLine(initial_val, indent_val);
+      final WrapLine pi = new WrapLine(prefix_val, indent_val);
+      final WrapLine pe = new WrapLine(prefix_val, exdent_val);
 
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          result[i] = StringVector.valueOf(StringVector.NA);
+        } else {
+          final LinkedList<Integer> occurrences = new LinkedList<>();
+          final String element = strings.getElementAsString(i);
+          final int elemlen = element.length();
+          brkiter.setText(element);
+          int match = brkiter.first();
+          while (match != BreakIterator.DONE) {
+            if (breaks_on_whitespace_only) {
+              if (0 < match && match < elemlen) {
+                if (whitespaces.contains(element.codePointAt(match - 1))) {
+                  occurrences.add(match);
+                }
+              } else {
+                occurrences.add(match);
+              }
+            } else {
+              occurrences.add(match);
+            }
+            match = brkiter.next();
+          }
+          if (occurrences.size() <= 1) {
+            result[i] = StringVector.valueOf(element);
+          } else {
+            occurrences.removeFirst(); // only interested in end positions
+            final int nwords = occurrences.size();
+            // convert occurrences in order to obtain end positions (in a string) of each "words",
+            final int[] end_pos_orig = new int[nwords];
+            // we'll get the end positions without trailing whitespaces
+            final int[] end_pos_trim = new int[nwords];
+            // we'll get the total widths/number of code points in each "word"
+            final int[] widths_orig = new int[nwords];
+            // we'll get the total widths/number of code points without trailing whitespaces
+            final int[] widths_trim = new int[nwords];
+            int k = 0;
+            for (Integer position : occurrences) {
+              end_pos_orig[k++] = position;
+            }
+            int j = 0;
+            int cur_block = 0;
+            int cur_width_orig = 0;
+            int cur_width_trim = 0;
+            int cur_count_orig = 0;
+            int cur_count_trim = 0;
+            int cur_end_pos_trim = 0;
+            while (j < elemlen) {
+              int jlast = j;
+              final int c = element.codePointAt(j);
+              j += Character.charCount(c);
+              // if (linebreaks.contains(c))
+              // throw StriException(MSG__NEWLINE_FOUND);
+
+              cur_width_orig += __width_char(c);
+              ++cur_count_orig;
+              if (whitespaces.contains(c)) {
+                // NEW: trim just one white space at the end:
+                cur_width_trim = __width_char(c);
+                cur_count_trim = 1;
+                cur_end_pos_trim = jlast;
+              } else {
+                cur_width_trim = 0;
+                cur_count_trim = 0;
+                cur_end_pos_trim = j;
+              }
+
+              if (j >= elemlen || end_pos_orig[cur_block] <= j) {
+                // we'll start a new block in a moment
+                if (does_use_length) {
+                  widths_orig[cur_block] = cur_count_orig;
+                  widths_trim[cur_block] = cur_count_orig - cur_count_trim;
+                } else {
+                  widths_orig[cur_block] = cur_width_orig;
+                  widths_trim[cur_block] = cur_width_orig - cur_width_trim;
+                }
+                end_pos_trim[cur_block] = cur_end_pos_trim;
+                cur_block++;
+                cur_width_orig = 0;
+                cur_width_trim = 0;
+                cur_count_orig = 0;
+                cur_count_trim = 0;
+                cur_end_pos_trim = j;
+              }
+            }
+            // do wrap
+            final int add_para_1 = (does_use_length) ? ((i == 0) ? ii.count : pi.count) : ((i == 0) ? ii.width : pi.width);
+            final int add_para_n = (does_use_length) ? pe.count : pe.width;
+            // @formatter:off
+            Deque<Integer> wrap_after = (exponent_val <= 0.0)
+                ? __wrap_greedy(nwords, width_val, widths_orig, widths_trim, add_para_1, add_para_n)
+                : __wrap_dynamic(nwords, width_val, exponent_val, widths_orig, widths_trim, add_para_1, add_para_n);
+            // @formatter:on
+            // wrap_after.size() line breaks => wrap_after.size()+1 lines
+            final int nlines = wrap_after.size() + 1;
+            final String[] answer = new String[nlines];
+            final StringBuilder sb = new StringBuilder();
+            int previousStart = 0;
+            int u = 0;
+            for (Integer after : wrap_after) {
+              final int endIndex = end_pos_trim[after];
+              sb.setLength(0);
+              // @formatter:off
+              if (i == 0 && u == 0)     sb.append(ii.text);
+              else if (i > 0 && u == 0) sb.append(pi.text);
+              else                      sb.append(pe.text);
+              // @formatter:on
+              sb.append(element.substring(previousStart, endIndex));
+              answer[u++] = sb.toString();
+              previousStart = end_pos_orig[after];
+            }
+            // last line goes here:
+            sb.setLength(0);
+            // @formatter:off
+            if (i == 0 && nlines-1 == 0)     sb.append(ii.text);
+            else if (i > 0 && nlines-1 == 0) sb.append(pi.text);
+            else                             sb.append(pe.text);
+            // @formatter:on
+            sb.append(element.substring(previousStart, end_pos_trim[nwords - 1]));
+            answer[nlines-1] = sb.toString();
+            result[i] = new StringArrayVector(answer);
+          }
+        }
+      }
+
+      return new ListVector(result);
+    }
+  }
+
+  private static class WrapLine {
+    protected final String text;
+    protected final int count;
+    protected final int width;
+    protected WrapLine(String text, int added) {
+      this.text = text;
+      this.count = text.codePointCount(0, text.length()) + added;
+      this.width = __width_string(text) + added;
+    }
+  }
   private enum ReplaceType {
     ALL, FIRST, LAST;
     boolean isAll() {
@@ -2271,11 +2603,46 @@ public class stringi {
     }
   }
   // @formatter:off
-  private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
+  private static final UnicodeSet COMBINING_MARKS = new UnicodeSet()
       .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
       .add(0x20D0, 0x20FF).add(0xFE20, 0xFE2F); // combining marks on symbols
+  // A pattern that matches an escape.
+  // What follows the escape indicator is captured by group 1=character 2=octal 3=Unicode.
+  private static final Pattern ESCAPES = Pattern
+      .compile("\\\\(?:(b|t|n|f|r|\\\"|\\\'|\\\\)|((?:[0-3]?[0-7])?[0-7])|[uU]+(\\p{XDigit}{4,8}))");
   // @formatter:on
 
+  private static String __unescape_unicode(CharSequence encoded) {
+    // based on code found in answer to StackOverflow question
+    // https://stackoverflow.com/questions/3537706/how-to-unescape-a-java-string-literal-in-java#answer-13278219
+    final Matcher matcher = ESCAPES.matcher(encoded);
+    final StringBuilder decoded = new StringBuilder();
+      // Find each escape of the encoded string in succession.
+    int previousStart = 0;
+      while (matcher.find()) {
+      decoded.append(encoded.subSequence(previousStart, matcher.start()));
+      if (matcher.start(1) >= 0) { // Decode a character escape.
+        final char ch = matcher.group(1).charAt(0);
+        switch (ch) {
+        // @formatter:off
+        case 'b': decoded.append('\b'); break;
+        case 'f': decoded.append('\f'); break;
+        case 'n': decoded.append('\n'); break;
+        case 'r': decoded.append('\r'); break;
+        case 't': decoded.append('\t'); break;
+        default: decoded.append(ch);
+        // @formatter:on
+        }
+      } else if (matcher.start(2) >= 0) { // Decode an octal escape.
+        decoded.appendCodePoint(Integer.parseInt(matcher.group(2), 8));
+      } else /* if (matcher.start(3) >= 0) */ { // Decode a Unicode escape.
+        decoded.appendCodePoint(Integer.parseInt(matcher.group(3), 16));
+          }
+      previousStart = matcher.end();
+      }
+    decoded.append(encoded.subSequence(previousStart, encoded.length()));
+    return decoded.toString();
+  }
   /**
    * Calculate the length of the output vector when applying a vectorized operation on >= 2 vectors
    *
@@ -2922,6 +3289,24 @@ public class stringi {
       return new StringArrayVector(result);
     }
   }
+  private static Vector __prepare_arg_list_raw(SEXP x, String name) {
+    if (name == null) {
+      name = "<noname>";
+    }
+    if (Types.isNull(x) || Types.isRaw(x)) {
+      return new ListVector(x);
+    } else if (x instanceof ListVector) {
+      final ListVector list = (ListVector) x;
+      for (SEXP entry : list) {
+        if (!(Types.isNull(entry) || Types.isRaw(entry))) {
+          throw new EvalException("all elements in `" + name + "` should be raw vectors");
+        }
+      }
+      return list;
+    } else {
+      return stri_prepare_arg_string(x, name);
+    }
+  }
   private static SEXP __prepare_arg_list_ignore_empty(SEXP x, boolean ignore_empty) {
     if (!ignore_empty) {
       return x;
@@ -3383,5 +3768,99 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
       endIndex = element.offsetByCodePoints(element.length(), endIndex + 1);
     }
     return Range.closedOpen(beginIndex, endIndex);
+  }
+  private static Deque<Integer> __wrap_greedy(int nwords, int width_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
+    final Deque<Integer> wrap_after = new LinkedList<>();
+    int len = add_1 + widths_orig[0];
+    for (int j = 1; j < nwords; j++) {
+      if (width_val < len + widths_trim[j]) {
+        len = add_n + widths_orig[j];
+        wrap_after.addLast(j - 1);
+      } else {
+        len += widths_orig[j];
+      }
+    }
+    return wrap_after;
+  }
+  private static Deque<Integer> __wrap_dynamic(int nwords, int width_val, double exponent_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
+    final Deque<Integer> wrap_after = new LinkedList<>();
+    // where cost[i][j] == cost of printing words i..j in a single line, i<=j
+    final double[][] cost = new double[nwords][nwords];
+    // calculate costs:
+    // there is some "punishment" for leaving blanks at the end of each line
+    // (number of "blank" codepoints ^ exponent_val)
+    for (int i = 0; i < nwords; i++) {
+      int sum = 0;
+      for (int j = i; j < nwords; j++) {
+        if (j > i) {
+          if (cost[i][j - 1] < 0.0) { // already Inf
+            cost[i][j] = -1.0; // Inf
+            continue;
+          } else {
+            sum -= widths_trim[j - 1];
+            sum += widths_orig[j - 1];
+          }
+        }
+        sum += widths_trim[j];
+        int ct = width_val - sum;
+        if (i == 0)
+          ct -= add_1;
+        else
+          ct -= add_n;
+
+        if (j == nwords - 1) { // last line == cost 0
+          if (j == i || ct >= 0)
+            cost[i][j] = 0.0;
+          else
+            cost[i][j] = -1.0/* Inf */;
+        } else if (j == i) {
+          // some words don't fit in a line at all -> cost 0.0
+          cost[i][j] = (ct < 0) ? 0.0 : Math.pow(ct, exponent_val);
+        } else {
+          cost[i][j] = (ct < 0) ? -1.0/* "Inf" */ : Math.pow(ct, exponent_val);
+        }
+      }
+    }
+    // f[j] == total cost of (optimally) printing words 0..j
+    final double[] f = new double[nwords];
+    // where[i][j] == false iff we don't wrap after i-th word, i<=j when (optimally) printing words 0..j
+    final boolean[][] where = new boolean[nwords][nwords];
+    for (int j = 0; j < nwords; ++j) {
+      if (cost[0][j] >= 0.0) {
+        // no breaking needed: words 0..j fit in one line
+        f[j] = cost[0][j];
+      } else {
+        // let i = optimal way of printing of words 0..i + printing i+1..j
+        int i = 0;
+        while (i <= j) {
+          if (cost[i + 1][j] >= 0.0) {
+            break;
+          }
+          ++i;
+        }
+        double best_i = f[i] + cost[i + 1][j];
+        for (int k = i + 1; k < j; ++k) {
+          if (cost[k + 1][j] >= 0.0) {
+            double best_cur = f[k] + cost[k + 1][j];
+            if (best_cur < best_i) {
+              best_i = best_cur;
+              i = k;
+            }
+          }
+        }
+        for (int k = 0; k < i; ++k) {
+          where[k][j] = where[k][i];
+        }
+        where[i][j] = true;
+        f[j] = best_i;
+      }
+    }
+    // result is in the last row of where...
+    for (int k = 0; k < nwords; ++k) {
+      if (where[k][nwords - 1]) {
+        wrap_after.addLast(k);
+      }
+    }
+    return wrap_after;
   }
 }
