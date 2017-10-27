@@ -3,11 +3,12 @@ package org.renjin.cran.stringi;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
-import java.text.Normalizer;
 import java.text.StringCharacterIterator;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -47,6 +48,7 @@ import com.ibm.icu.lang.UProperty;
 import com.ibm.icu.text.BreakIterator;
 import com.ibm.icu.text.CaseMap;
 import com.ibm.icu.text.Collator;
+import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.RuleBasedBreakIterator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.text.StringSearch;
@@ -254,7 +256,41 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
-  public static SEXP stri_detect_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_detect_coll(SEXP str, SEXP pattern, SEXP negate, SEXP opts_collator) {
+    final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final int length = __recycling_rule(true, str, pattern);
+    final Logical[] result = new Logical[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    StringSearch matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = Logical.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = Logical.valueOf(is_negating);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (separatorPattern.equals(lastPattern)) {
+          matcher.setTarget(new StringCharacterIterator(element));
+        } else {
+          lastPattern = separatorPattern;
+          matcher = new StringSearch(separatorPattern, new StringCharacterIterator(element), collator);
+        }
+        matcher.reset();
+        final boolean found = matcher.first() != StringSearch.DONE;
+        result[i] = Logical.valueOf(is_negating ? !found : found);
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
   public static SEXP stri_detect_fixed(SEXP str, SEXP pattern, SEXP negate, SEXP opts_fixed) {
     final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, false);
@@ -342,8 +378,88 @@ public class stringi {
       return new StringArrayVector(result);
     }
   }
-  public static SEXP stri_duplicated(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_duplicated_any(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_duplicated(SEXP str, SEXP fromLast, SEXP opts_collator) {
+    final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
+    final int length = str.length();
+    final boolean[] result = new boolean[length];
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    boolean no_na = true;
+    if (fromEnd) {
+      for (int i = length - 1; 0 <= i; i--) {
+        if (strings.isElementNA(i)) {
+          result[i] = true;
+          if (no_na) {
+            result[i] = false;
+            no_na = false;
+          }
+        } else {
+          result[i] = !unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+        }
+      }
+    } else {
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          result[i] = true;
+          if (no_na) {
+            result[i] = false;
+            no_na = false;
+          }
+        } else {
+          result[i] = !unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+        }
+      }
+    }
+
+    return new LogicalArrayVector(result);
+  }
+  public static SEXP stri_duplicated_any(SEXP str, SEXP fromLast, SEXP opts_collator) {
+    final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    int result = 0;
+    boolean no_na = true;
+    if (fromEnd) {
+      for (int i = length - 1; 0 <= i; i--) {
+        if (strings.isElementNA(i)) {
+          if (no_na) {
+            no_na = false;
+          } else {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        } else {
+          if (!unique.add(new CollatedString(collator, strings.getElementAsString(i)))) {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        }
+      }
+    } else {
+      for (int i = 0; i < length; i++) {
+        if (strings.isElementNA(i)) {
+          if (no_na) {
+            no_na = false;
+          } else {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        } else {
+          if (!unique.add(new CollatedString(collator, strings.getElementAsString(i)))) {
+            result = i + 1; // 1-based indices
+            break;
+          }
+        }
+      }
+    }
+
+    return IntVector.valueOf(result);
+  }
   public static SEXP stri_enc_detect(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_detect2(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_isutf8(SEXP s1) { throw new EvalException("TODO"); }
@@ -422,18 +538,212 @@ public class stringi {
   public static SEXP stri_extract_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_all_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_first_charclass(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_last_charclass(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_charclass(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_first_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_last_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_first_fixed(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_last_fixed(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_first_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_last_regex(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+  public static SEXP stri_extract_first_charclass(SEXP str, SEXP pattern) {
+    return __extract_firstlast_charclass(str, pattern, ReplaceType.FIRST);
+  }
+  public static SEXP stri_extract_last_charclass(SEXP str, SEXP pattern) {
+    return __extract_firstlast_charclass(str, pattern, ReplaceType.LAST);
+  }
+  public static SEXP stri_extract_all_charclass(SEXP str, SEXP pattern, SEXP merge, SEXP simplify, SEXP omit_no_match) {
+    final boolean is_merging = ((AtomicVector) merge).getElementAsLogical(0).toBooleanStrict();
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i)) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (!separatorPattern.equals(lastPattern)) {
+          lastPattern = separatorPattern;
+          matcher = new UnicodeSet(separatorPattern);
+        }
+        int previousStart = 0;
+        int beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+        if (-1 < beginIndex) {
+          final List<Range<Integer>> occurrences = new LinkedList<>();
+          while (previousStart < element.length() && beginIndex < element.length()) {
+            final int endIndex = matcher.span(element, beginIndex, UnicodeSet.SpanCondition.CONTAINED);
+            if (is_merging) {
+              occurrences.add(Range.closedOpen(beginIndex, endIndex));
+            } else {
+              for (int k = beginIndex; k < endIndex; k++) {
+                occurrences.add(Range.closedOpen(k, k + 1));
+              }
+            }
+            previousStart = endIndex;
+            beginIndex = matcher.span(element, previousStart, UnicodeSet.SpanCondition.NOT_CONTAINED);
+          }
+          final String[] values = new String[occurrences.size()];
+          int j = 0;
+          for (Range<Integer> entry : occurrences) {
+            values[j++] = element.substring(entry.lowerEndpoint(), entry.upperEndpoint());
+          }
+          result[i] = new StringArrayVector(values);
+        } else {
+          result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+        }
+      }
+    }
+
+    return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
+  }
+  public static SEXP stri_extract_first_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
+    return __extract_firstlast_coll(str, pattern, opts_collator, ReplaceType.FIRST);
+  }
+  public static SEXP stri_extract_last_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
+    return __extract_firstlast_coll(str, pattern, opts_collator, ReplaceType.LAST);
+  }
+  public static SEXP stri_extract_all_coll(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_collator) {
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+    
+    String lastPattern = null;
+    StringSearch matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (separatorPattern.equals(lastPattern)) {
+          matcher.setTarget(new StringCharacterIterator(element));
+        } else {
+          lastPattern = separatorPattern;
+          matcher = new StringSearch(separatorPattern, new StringCharacterIterator(element), collator);
+        }
+        matcher.reset();
+        int beginIndex = matcher.first();
+        if (beginIndex == StringSearch.DONE) {
+          result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+        } else {
+          final List<Range<Integer>> occurrences = new LinkedList<>();
+          while (beginIndex != StringSearch.DONE) {
+            occurrences.add(Range.closedOpen(beginIndex, beginIndex + matcher.getMatchLength()));
+            beginIndex = matcher.next();
+          }
+          final String[] values = new String[occurrences.size()];
+          int j = 0;
+          for (Range<Integer> entry : occurrences) {
+            values[j++] = element.substring(entry.lowerEndpoint(), entry.upperEndpoint());
+          }
+          result[i] = new StringArrayVector(values);
+        }
+      }
+    }
+
+    return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
+  }
+  public static SEXP stri_extract_first_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
+    return __extract_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.FIRST);
+  }
+  public static SEXP stri_extract_last_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
+    return __extract_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.LAST);
+  }
+  public static SEXP stri_extract_all_fixed(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_fixed) {
+    final int flags = __fixed_flags(opts_fixed, true);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        final int patternLength = separatorPattern.length();
+        final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+        final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+        int previousStart = 0;
+        int beginIndex = elementNormalized.indexOf(patternNormalized);
+        if (-1 < beginIndex) {
+          final List<Range<Integer>> occurrences = new LinkedList<>();
+          while (-1 < beginIndex) {
+            occurrences.add(Range.closedOpen(beginIndex, beginIndex + patternLength));
+            previousStart = beginIndex + patternLength;
+            beginIndex = elementNormalized.indexOf(patternNormalized, previousStart);
+          }
+          final String[] values = new String[occurrences.size()];
+          int j = 0;
+          for (Range<Integer> entry : occurrences) {
+            values[j++] = element.substring(entry.lowerEndpoint(), entry.upperEndpoint());
+          }
+          result[i] = new StringArrayVector(values);
+        } else {
+          result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+        }
+      }
+    }
+
+    return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
+  }
+  public static SEXP stri_extract_first_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
+    return __extract_firstlast_regex(str, pattern, opts_regex, ReplaceType.FIRST);
+  }
+  public static SEXP stri_extract_last_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
+    return __extract_firstlast_regex(str, pattern, opts_regex, ReplaceType.LAST);
+  }
+  public static SEXP stri_extract_all_regex(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_regex) {
+    final int flags = __regex_flags(opts_regex);
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.valueOf(StringVector.NA);
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        final LinkedList<Range<Integer>> occurrences = new LinkedList<>();
+        while (matcher.find()) {
+          occurrences.add(Range.closedOpen(matcher.start(), matcher.end()));
+        }
+        if (occurrences.size() <= 0) {
+          result[i] = __string_vector_NA(omits_not_found ? 0 : 1);
+        } else {
+          final String[] values = new String[occurrences.size()];
+          int j = 0;
+          for (Range<Integer> entry : occurrences) {
+            values[j++] = element.substring(entry.lowerEndpoint(), entry.upperEndpoint());
+          }
+          result[i] = new StringArrayVector(values);
+        }
+      }
+    }
+
+    return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
+  }
   public static SEXP stri_flatten(SEXP str, SEXP collapse) {
     final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
     if (collapsers.isElementNA(0)) {
@@ -879,8 +1189,12 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_order(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_sort(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_order(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
+    return __order_or_sort(str, decreasing, na_last, opts_collator, true);
+  }
+  public static SEXP stri_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
+    return __order_or_sort(str, decreasing, na_last, opts_collator, false);
+  }
   public static SEXP stri_pad(SEXP str, SEXP width, SEXP side, SEXP pad, SEXP use_length) {
     if (!side.getTypeName().equals(IntVector.TYPE_NAME) || side.length() != 1) {
       throw new EvalException("incorrect argument");
@@ -1774,33 +2088,37 @@ public class stringi {
   public static SEXP stri_timezone_info(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_char(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_isnfc(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFC);
+    return __trans_isnf(str, Normalizer2.getNFCInstance());
   }
   public static SEXP stri_trans_isnfd(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFD);
+    return __trans_isnf(str, Normalizer2.getNFDInstance());
   }
   public static SEXP stri_trans_isnfkc(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFKC);
+    return __trans_isnf(str, Normalizer2.getNFKCInstance());
   }
   public static SEXP stri_trans_isnfkd(SEXP str) {
-    return __trans_isnf(str, Normalizer.Form.NFKD);
+    return __trans_isnf(str, Normalizer2.getNFKDInstance());
   }
-  public static SEXP stri_trans_isnfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_isnfkc_casefold(SEXP str) {
+    return __trans_isnf(str, Normalizer2.getNFKCCasefoldInstance());
+  }
   public static SEXP stri_trans_general(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_nfc(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFC);
+    return __trans_nf(str, Normalizer2.getNFCInstance());
   }
   public static SEXP stri_trans_nfd(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFD);
+    return __trans_nf(str, Normalizer2.getNFDInstance());
   }
   public static SEXP stri_trans_nfkc(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFKC);
+    return __trans_nf(str, Normalizer2.getNFKCInstance());
   }
   public static SEXP stri_trans_nfkd(SEXP str) {
-    return __trans_nf(str, Normalizer.Form.NFKD);
+    return __trans_nf(str, Normalizer2.getNFKDInstance());
   }
-  public static SEXP stri_trans_nfkc_casefold(SEXP s1) { throw new EvalException("TODO"); }
+  public static SEXP stri_trans_nfkc_casefold(SEXP str) {
+    return __trans_nf(str, Normalizer2.getNFKCCasefoldInstance());
+  }
   public static SEXP stri_trans_totitle(SEXP str, SEXP opts_brkiter) {
     final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "word");
     final int length = str.length();
@@ -1871,7 +2189,31 @@ public class stringi {
     return __trim_left_right(str, pattern, TrimOption.TRAILING);
   }
   public static SEXP stri_unescape_unicode(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_unique(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+  public static SEXP stri_unique(SEXP str, SEXP opts_collator) {
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final LinkedHashSet<CollatedString> unique = new LinkedHashSet<>();
+
+    boolean no_na = true;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        if (no_na) {
+          unique.add(new CollatedString(collator, StringVector.NA));
+          no_na = false;
+        }
+      } else {
+        unique.add(new CollatedString(collator, strings.getElementAsString(i)));
+      }
+    }
+    final String[] result = new String[unique.size()];
+    int j = 0;
+    for (CollatedString cs : unique) {
+      result[j++] = cs.str;
+    }
+
+    return new StringArrayVector(result);
+  }
   public static SEXP stri_width(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final int length = strings.length();
@@ -1902,7 +2244,32 @@ public class stringi {
       return LAST.equals(this);
     }
   }
+  private static final class CollatedString {
+    private final RuleBasedCollator collator;
+    private final String str;
+    private final int hash;
 
+    private CollatedString(RuleBasedCollator collator, String str) {
+      super();
+      this.collator = collator;
+      this.str = str;
+      // return the same hash for decomposed strings and let collator decide for equals
+      this.hash = Normalizer2.getNFKDInstance().normalize(str).toUpperCase().hashCode();
+    }
+    @Override
+    public boolean equals(Object obj) {
+      if (obj != null && obj instanceof CollatedString) {
+        final int cmp = collator.compare(str, ((CollatedString) obj).str);
+        return 0 == cmp;
+      } else {
+        return false;
+      }
+    }
+    @Override
+    public int hashCode() {
+      return hash;
+    }
+  }
   // @formatter:off
   private static UnicodeSet COMBINING_MARKS = new UnicodeSet()
       .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
@@ -2117,7 +2484,7 @@ public class stringi {
     }
     return builder;
   }
-  private static SEXP __string_vector_NA(final int length) {
+  private static StringVector __string_vector_NA(final int length) {
     final StringVector.Builder builder = StringVector.newBuilder();
     for (int j = 0; j < length; j++) {
       builder.addNA();
@@ -2308,7 +2675,7 @@ public class stringi {
     /* any other characters have width 1 */
     return 1;
   }
-  private static SEXP __trans_isnf(SEXP str, Normalizer.Form form) {
+  private static SEXP __trans_isnf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final Logical[] result = new Logical[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2317,13 +2684,13 @@ public class stringi {
       if (strings.isElementNA(i)) {
         result[i] = Logical.NA;
       } else {
-        result[i] = Logical.valueOf(Normalizer.isNormalized(strings.getElementAsString(i), form));
+        result[i] = Logical.valueOf(normalizer.isNormalized(strings.getElementAsString(i)));
       }
     }
 
     return new LogicalArrayVector(result);
   }
-  private static SEXP __trans_nf(SEXP str, Normalizer.Form form) {
+  private static SEXP __trans_nf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final String[] result = new String[length];
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2332,7 +2699,7 @@ public class stringi {
       if (strings.isElementNA(i)) {
         result[i] = StringVector.NA;
       } else {
-        result[i] = Normalizer.normalize(strings.getElementAsString(i), form);
+        result[i] = normalizer.normalize(strings.getElementAsString(i));
       }
     }
 
@@ -2400,7 +2767,7 @@ public class stringi {
         }
         final String name = names.getElementAsString(i);
         if ("locale".equals(name)) {
-          locale = Locale.forLanguageTag(options.getElementAsString(i));
+          locale = Locale.forLanguageTag(options.getElementAsString(i).replace('_', '-'));
         } else if ("strength".equals(name)) {
           strength = options.getElementAsInt(i) - 1;
           if (strength < Collator.PRIMARY) {
@@ -2731,6 +3098,241 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
     final StringVector names = new StringArrayVector(new String[] { "start", "end" });
     builder.setColNames(names);
     return builder.build();
+  }
+  private static SEXP __order_or_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator, boolean order) {
+    final boolean desc = ((AtomicVector) decreasing).getElementAsLogical(0).toBooleanStrict();
+    final Logical lastNA = stri_prepare_arg_logical(na_last, "na_last").getElementAsLogical(0);
+    final boolean isDefinedLastNA = !Logical.NA.equals(lastNA);
+    final int length = str.length();
+    final StringVector strings = stri_prepare_arg_string(str, "str");
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final Integer[] ordered = new Integer[length];
+    final LinkedList<Integer> nas = new LinkedList<>();
+
+    int notna = 0;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        if (isDefinedLastNA) {
+          nas.add(i);
+        }
+      } else {
+        ordered[notna++] = i;
+      }
+    }
+    Arrays.sort(ordered, new Comparator<Integer>() {
+      @Override
+      public int compare(Integer i1, Integer i2) {
+        final int cmp = collator.compare(strings.getElementAsString(i1), strings.getElementAsString(i2));
+        return desc ? -cmp : cmp;
+      }
+    });
+    if (order) {
+      final int[] result = new int[notna + nas.size()];
+      int j = 0;
+      if (Logical.FALSE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = 1 + index; // 1-based indices
+        }
+      }
+      for (int k = 0; k < notna; k++) {
+        result[j++] = 1 + ordered[k]; // 1-based indices
+      }
+      if (Logical.TRUE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = 1 + index; // 1-based indices
+        }
+      }
+      return new IntArrayVector(result);
+    } else {
+      final String[] result = new String[notna + nas.size()];
+      int j = 0;
+      if (Logical.FALSE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = StringVector.NA;
+        }
+      }
+      for (int k = 0; k < notna; k++) {
+        result[j++] = strings.getElementAsString(ordered[k]);
+      }
+      if (Logical.TRUE.equals(lastNA)) {
+        for (Integer index : nas) {
+          result[j++] = StringVector.NA;
+        }
+      }
+      return new StringArrayVector(result);
+    }
+  private static SEXP __extract_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
+    final int length = __recycling_rule(true, str, pattern);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    UnicodeSet matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i)) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (!separatorPattern.equals(lastPattern)) {
+          lastPattern = separatorPattern;
+          matcher = new UnicodeSet(separatorPattern);
+        }
+        if (replaces.isFirst()) {
+          final int beginIndex = matcher.span(element, UnicodeSet.SpanCondition.NOT_CONTAINED);
+          if (-1 < beginIndex) {
+            result[i] = element.substring(beginIndex, beginIndex + 1);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else if (replaces.isLast()) {
+          final int beginIndex = matcher.spanBack(element, UnicodeSet.SpanCondition.NOT_CONTAINED);
+          if (-1 < beginIndex) {
+            result[i] = element.substring(beginIndex - 1, beginIndex);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else {
+          result[i] = StringVector.NA;
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __extract_firstlast_coll(SEXP str, SEXP pattern, SEXP opts_collator, ReplaceType replaces) {
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final int length = __recycling_rule(true, str, pattern);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    StringSearch matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (separatorPattern.equals(lastPattern)) {
+          matcher.setTarget(new StringCharacterIterator(element));
+        } else {
+          lastPattern = separatorPattern;
+          matcher = new StringSearch(separatorPattern, new StringCharacterIterator(element), collator);
+        }
+        matcher.reset();
+        if (replaces.isFirst()) {
+          final int beginIndex = matcher.first();
+          if (beginIndex == StringSearch.DONE) {
+            result[i] = StringVector.NA;
+          } else {
+            result[i] = element.substring(beginIndex, beginIndex + matcher.getMatchLength());
+          }
+        } else if (replaces.isLast()) {
+          final int beginIndex = matcher.last();
+          if (beginIndex == StringSearch.DONE) {
+            result[i] = StringVector.NA;
+          } else {
+            result[i] = element.substring(beginIndex, beginIndex + matcher.getMatchLength());
+          }
+        } else {
+          result[i] = StringVector.NA;
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __extract_firstlast_fixed(SEXP str, SEXP pattern, SEXP opts_fixed, ReplaceType replaces) {
+    final int flags = __fixed_flags(opts_fixed, true);
+    final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
+    final int length = __recycling_rule(true, str, pattern);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        final int patternLength = separatorPattern.length();
+        final String patternNormalized = is_insensitive ? separatorPattern.toUpperCase() : separatorPattern;
+        final String elementNormalized = is_insensitive ? element.toUpperCase() : element;
+        if (replaces.isFirst()) {
+          final int beginIndex = elementNormalized.indexOf(patternNormalized);
+          if (-1 < beginIndex) {
+            result[i] = element.substring(beginIndex, beginIndex + patternLength);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else if (replaces.isLast()) {
+          final int beginIndex = elementNormalized.lastIndexOf(patternNormalized);
+          if (-1 < beginIndex) {
+            result[i] = element.substring(beginIndex, beginIndex + patternLength);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else {
+          result[i] = StringVector.NA;
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
+  }
+  private static SEXP __extract_firstlast_regex(SEXP str, SEXP pattern, SEXP opts_regex, ReplaceType replaces) {
+    final int flags = __regex_flags(opts_regex);
+    final int length = __recycling_rule(true, str, pattern);
+    final String[] result = new String[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = StringVector.NA;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+        final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+        boolean found = matcher.find();
+        if (found) {
+          if (replaces.isFirst()) {
+            result[i] = element.substring(matcher.start(), matcher.end());
+          } else if (replaces.isLast()) {
+            int start = matcher.start();
+            int end = matcher.end();
+            while (matcher.find()) {
+              start = matcher.start();
+              end = matcher.end();
+            }
+            result[i] = element.substring(start, end);
+          } else {
+            result[i] = StringVector.NA;
+          }
+        } else {
+          result[i] = StringVector.NA;
+        }
+      }
+    }
+
+    return new StringArrayVector(result);
   }
   private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
     final StringVector e1 = stri_prepare_arg_string(s1, "e1");
