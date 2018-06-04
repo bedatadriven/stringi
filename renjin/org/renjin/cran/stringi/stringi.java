@@ -3546,6 +3546,8 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
       }
       return new StringArrayVector(result);
     }
+  }
+
   private static SEXP __extract_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern);
     final String[] result = new String[length];
