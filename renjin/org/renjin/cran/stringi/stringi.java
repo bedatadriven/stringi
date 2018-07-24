@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import org.renjin.eval.EvalException;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.Types;
+import org.renjin.primitives.Warning;
 import org.renjin.primitives.matrix.IntMatrixBuilder;
 import org.renjin.primitives.matrix.Matrix;
 import org.renjin.primitives.packaging.DllInfo;
@@ -167,7 +168,47 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
-  public static SEXP stri_count_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+  public static SEXP stri_count_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
+    final RuleBasedCollator collator = __open_collator(opts_collator);
+    final int length = __recycling_rule(true, str, pattern);
+    final int[] result = new int[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+
+    String lastPattern = null;
+    StringSearch matcher = null;
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i) || patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i) && patterns.getElementAsString(i).length() <= 0) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = IntVector.NA;
+      } else if (strings.getElementAsString(i).length() <= 0) {
+        result[i] = 0;
+      } else {
+        final String element = strings.getElementAsString(i);
+        final String separatorPattern = patterns.getElementAsString(i);
+        if (separatorPattern.equals(lastPattern)) {
+          matcher.setTarget(new StringCharacterIterator(element));
+        } else {
+          lastPattern = separatorPattern;
+          matcher = new StringSearch(separatorPattern, new StringCharacterIterator(element), collator);
+        }
+        matcher.reset();
+        int found = 0;
+        int beginIndex = matcher.first();
+        while (-1 < beginIndex) {
+          found++;
+          beginIndex = matcher.next();
+        }
+        result[i] = found;
+      }
+    }
+
+    return new IntArrayVector(result);
+  }
+
+
   public static SEXP stri_count_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     final int flags = __fixed_flags(opts_fixed, true);
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
@@ -2752,6 +2793,7 @@ public class stringi {
 
     return flags;
   }
+
   private static int __regex_flags(SEXP opts_regex) {
     int flags = 0;
 
