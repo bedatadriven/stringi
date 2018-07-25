@@ -36,21 +36,7 @@ import org.renjin.primitives.sequence.RepLogicalVector;
 import org.renjin.primitives.sequence.RepStringVector;
 import org.renjin.repackaged.guava.base.Utf8;
 import org.renjin.repackaged.guava.collect.Range;
-import org.renjin.sexp.AtomicVector;
-import org.renjin.sexp.DoubleVector;
-import org.renjin.sexp.IntArrayVector;
-import org.renjin.sexp.IntVector;
-import org.renjin.sexp.ListVector;
-import org.renjin.sexp.Logical;
-import org.renjin.sexp.LogicalArrayVector;
-import org.renjin.sexp.LogicalVector;
-import org.renjin.sexp.Null;
-import org.renjin.sexp.RawVector;
-import org.renjin.sexp.SEXP;
-import org.renjin.sexp.StringArrayVector;
-import org.renjin.sexp.StringVector;
-import org.renjin.sexp.Symbols;
-import org.renjin.sexp.Vector;
+import org.renjin.sexp.*;
 
 import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UCharacter.EastAsianWidth;
@@ -676,7 +662,52 @@ public class stringi {
   }
   public static SEXP stri_extract_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_boundaries(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
+  public static SEXP stri_extract_all_boundaries(SEXP str, SEXP simplify, SEXP omit_no_match, SEXP opts_brkiter) {
+
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
+    final int length = __recycling_rule(true, str);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = StringVector.valueOf(StringVector.NA);
+        continue;
+      }
+
+      if (strings.length() == 0) {
+        result[i] = omits_not_found ? StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
+        continue;
+      }
+
+      final String element = strings.getElementAsString(i);
+      brkiter.setText(element);
+      final LinkedList<Range<Integer>> occurences = new LinkedList<>();
+      int previousStart = brkiter.first();
+
+      while (BreakIterator.DONE < brkiter.next()) {
+        int lower = previousStart;
+        int upper = brkiter.current();
+        occurences.add(Range.closedOpen(lower, upper));
+        previousStart = upper;
+      }
+
+      if (occurences.size() <= 0) {
+        result[i] = omits_not_found ? StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
+        continue;
+      }
+
+      final String[] values = new String[occurences.size()];
+      int j = 0;
+      for (Range<Integer> entry : occurences) {
+        values[j++] = element.substring(entry.lowerEndpoint(), entry.upperEndpoint());
+      }
+      result[i] = new StringArrayVector(values);
+
+    }
+    return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
+  }
   public static SEXP stri_extract_first_charclass(SEXP str, SEXP pattern) {
     return __extract_firstlast_charclass(str, pattern, ReplaceType.FIRST);
   }
