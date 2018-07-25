@@ -693,12 +693,14 @@ public class stringi {
         continue;
       }
 
-      if (strings.length() == 0) {
-        result[i] = omits_not_found ? StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
+      final String element = strings.getElementAsString(i);
+
+      if (element.isEmpty()) {
+        result[i] = omits_not_found ?
+            StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
         continue;
       }
 
-      final String element = strings.getElementAsString(i);
       brkiter.setText(element);
       final LinkedList<Range<Integer>> occurences = new LinkedList<>();
       int previousStart = brkiter.first();
@@ -711,7 +713,8 @@ public class stringi {
       }
 
       if (occurences.size() <= 0) {
-        result[i] = omits_not_found ? StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
+        result[i] = omits_not_found ?
+            StringVector.EMPTY : StringVector.valueOf(StringVector.NA);
         continue;
       }
 
@@ -1158,7 +1161,62 @@ public class stringi {
   public static SEXP stri_locale_info(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_locale_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_locale_set(SEXP s1) { throw new EvalException("TODO"); }
-  public static SEXP stri_locate_all_boundaries(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+
+  public static SEXP stri_locate_all_boundaries(SEXP str, SEXP omit_no_match, SEXP opts_brkiter) {
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
+    final int length = __recycling_rule(true, str);
+    final IntVector[] result = new IntVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+
+    for (int i = 0; i < length; i++) {
+      if (strings.isElementNA(i)) {
+        result[i] = __locate_set_dimnames_matrix(__int_matrix_NA(1, 2));
+        continue;
+      }
+
+      final String element = strings.getElementAsString(i);
+
+      if (element.isEmpty()) {
+        if (omits_not_found) {
+          result[i] = __locate_set_dimnames_matrix(__int_matrix_0(0, 2));
+        } else {
+          result[i] = __locate_set_dimnames_matrix(__int_matrix_NA(1, 2));
+        }
+
+        continue;
+      }
+
+      brkiter.setText(element);
+      final LinkedList<Range<Integer>> occurences = new LinkedList<>();
+      int previousStart = brkiter.first();
+
+      while (BreakIterator.DONE < brkiter.next()) {
+        int lower = previousStart;
+        int upper = brkiter.current();
+        occurences.add(Range.closedOpen(lower, upper));
+        previousStart = upper;
+      }
+
+      if (occurences.size() <= 0) {
+        result[i] = __locate_set_dimnames_matrix(__int_matrix_0(omits_not_found ? 0 : 1, 2));
+        continue;
+      }
+
+      final IntMatrixBuilder builder = new IntMatrixBuilder(occurences.size(), 2);
+      int j = 0;
+      for (Range<Integer> entry : occurences) {
+        builder.set(j, 0, entry.lowerEndpoint() + 1);
+        builder.set(j, 1, entry.upperEndpoint());
+        j++;
+      }
+
+      result[i] = __locate_set_dimnames_matrix(builder);
+    }
+
+    return new ListVector(result);
+  }
+
   public static SEXP stri_locate_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_locate_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
 
@@ -2986,6 +3044,17 @@ public class stringi {
       final String filler = first_simplify.equals(Logical.NA) ? StringVector.NA : "";
       return stri_list2matrix(resultSexp, LogicalVector.valueOf(true), StringVector.valueOf(filler), IntVector.valueOf(required_depth));
     }
+  }
+
+  private static IntMatrixBuilder __int_matrix_0(int nrows, int ncols) {
+    final IntMatrixBuilder builder = new IntMatrixBuilder(nrows, ncols);
+    for (int i = 0; i < nrows; i++) {
+      for (int j = 0; j < ncols; j++) {
+        builder.set(i, j, 0);
+      }
+    }
+
+    return builder;
   }
 
   private static IntMatrixBuilder __int_matrix_NA(int nrows, int ncols) {
