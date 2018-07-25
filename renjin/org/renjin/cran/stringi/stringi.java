@@ -1101,8 +1101,7 @@ public class stringi {
         }
       }
       StringVector matrix = new StringArrayVector(result);
-      matrix.setAttribute(Symbols.DIM, new IntArrayVector(maxVectorLength, length));
-      return matrix;
+      return matrix.setAttribute(Symbols.DIM, new IntArrayVector(maxVectorLength, length));
     } else {
       for (int i = 0; i < length; i++) {
         final AtomicVector column = x.getElementAsSEXP(i);
@@ -1116,8 +1115,7 @@ public class stringi {
         }
       }
       StringVector matrix = new StringArrayVector(result);
-      matrix.setAttribute(Symbols.DIM, new IntArrayVector(length, maxVectorLength));
-      return matrix;
+      return matrix.setAttribute(Symbols.DIM, new IntArrayVector(length, maxVectorLength));
     }
   }
   public static SEXP stri_locale_info(SEXP s1) { throw new EvalException("TODO"); }
