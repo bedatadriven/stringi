@@ -90,6 +90,7 @@ public class stringi {
   public static SEXP stri_cmp_ge(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_equiv(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_cmp_nequiv(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+
   public static SEXP stri_count_boundaries(SEXP str, SEXP opts_brkiter) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
@@ -113,6 +114,7 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_count_charclass(SEXP str, SEXP pattern) {
     final int length = __recycling_rule(true, str, pattern);
     final int[] result = new int[length];
@@ -153,7 +155,9 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_count_coll(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+
   public static SEXP stri_count_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     final int flags = __fixed_flags(opts_fixed, true);
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
@@ -191,6 +195,7 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_count_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern);
@@ -220,6 +225,7 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_datetime_symbols(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_fields(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_datetime_now(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
@@ -253,6 +259,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_detect_coll(SEXP str, SEXP pattern, SEXP negate, SEXP opts_collator) {
     final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
     final RuleBasedCollator collator = __open_collator(opts_collator);
@@ -288,6 +295,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_detect_fixed(SEXP str, SEXP pattern, SEXP negate, SEXP opts_fixed) {
     final boolean is_negating = ((AtomicVector) negate).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, false);
@@ -319,6 +327,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_detect_regex(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex) {
     if (str.length() == 0 || pattern.length() == 0) {
       return ListVector.EMPTY;
@@ -347,6 +356,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_dup(SEXP str, SEXP times) {
     final int length = __recycling_rule(true, str, times);
     final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
@@ -375,6 +385,7 @@ public class stringi {
       return new StringArrayVector(result);
     }
   }
+
   public static SEXP stri_duplicated(SEXP str, SEXP fromLast, SEXP opts_collator) {
     final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
     final int length = str.length();
@@ -412,6 +423,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_duplicated_any(SEXP str, SEXP fromLast, SEXP opts_collator) {
     final boolean fromEnd = ((AtomicVector) fromLast).getElementAsLogical(0).toBooleanStrict();
     final int length = str.length();
@@ -457,6 +469,7 @@ public class stringi {
 
     return IntVector.valueOf(result);
   }
+
   public static SEXP stri_enc_detect(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_detect2(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_isutf8(SEXP s1) { throw new EvalException("TODO"); }
@@ -469,6 +482,7 @@ public class stringi {
   public static SEXP stri_enc_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_mark(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_set(SEXP s1) { throw new EvalException("TODO"); }
+
   public static SEXP stri_enc_fromutf32(SEXP vec) {
     final int length = vec.length();
     final String[] result = new String[length];
@@ -506,6 +520,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_enc_toascii(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_enc_toutf8(SEXP str, SEXP is_unknown_8bit, SEXP validate) {
     // in Java, the invalid code points would result in an exception at the time of reading the string
@@ -526,6 +541,7 @@ public class stringi {
       return str;
     }
   }
+
   public static SEXP stri_enc_toutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_encode(SEXP str, SEXP from, SEXP to, SEXP to_raw) {
     final boolean returns_raw = ((AtomicVector) to_raw).asLogical().toBooleanStrict();
@@ -609,6 +625,7 @@ public class stringi {
       return returns_raw ? new ListVector(raws) : new StringArrayVector(encoded);
     }
   }
+
   public static SEXP stri_endswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_endswith_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
@@ -662,8 +679,8 @@ public class stringi {
   }
   public static SEXP stri_extract_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_extract_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_extract_all_boundaries(SEXP str, SEXP simplify, SEXP omit_no_match, SEXP opts_brkiter) {
 
+  public static SEXP stri_extract_all_boundaries(SEXP str, SEXP simplify, SEXP omit_no_match, SEXP opts_brkiter) {
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
     final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "line_break");
     final int length = __recycling_rule(true, str);
@@ -706,14 +723,18 @@ public class stringi {
       result[i] = new StringArrayVector(values);
 
     }
+
     return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
   }
+
   public static SEXP stri_extract_first_charclass(SEXP str, SEXP pattern) {
     return __extract_firstlast_charclass(str, pattern, ReplaceType.FIRST);
   }
+
   public static SEXP stri_extract_last_charclass(SEXP str, SEXP pattern) {
     return __extract_firstlast_charclass(str, pattern, ReplaceType.LAST);
   }
+
   public static SEXP stri_extract_all_charclass(SEXP str, SEXP pattern, SEXP merge, SEXP simplify, SEXP omit_no_match) {
     final boolean is_merging = ((AtomicVector) merge).getElementAsLogical(0).toBooleanStrict();
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
@@ -764,12 +785,15 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
   }
+
   public static SEXP stri_extract_first_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
     return __extract_firstlast_coll(str, pattern, opts_collator, ReplaceType.FIRST);
   }
+
   public static SEXP stri_extract_last_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
     return __extract_firstlast_coll(str, pattern, opts_collator, ReplaceType.LAST);
   }
+
   public static SEXP stri_extract_all_coll(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_collator) {
     final RuleBasedCollator collator = __open_collator(opts_collator);
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
@@ -819,12 +843,15 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
   }
+
   public static SEXP stri_extract_first_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     return __extract_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.FIRST);
   }
+
   public static SEXP stri_extract_last_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     return __extract_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.LAST);
   }
+
   public static SEXP stri_extract_all_fixed(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_fixed) {
     final int flags = __fixed_flags(opts_fixed, true);
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
@@ -871,12 +898,15 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
   }
+
   public static SEXP stri_extract_first_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     return __extract_firstlast_regex(str, pattern, opts_regex, ReplaceType.FIRST);
   }
+
   public static SEXP stri_extract_last_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     return __extract_firstlast_regex(str, pattern, opts_regex, ReplaceType.LAST);
   }
+
   public static SEXP stri_extract_all_regex(SEXP str, SEXP pattern, SEXP simplify, SEXP omit_no_match, SEXP opts_regex) {
     final int flags = __regex_flags(opts_regex);
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
@@ -914,6 +944,7 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, IntVector.valueOf(0));
   }
+
   public static SEXP stri_flatten(SEXP str, SEXP collapse) {
     final StringVector collapsers = stri_prepare_arg_string(collapse, "collapse");
     if (collapsers.isElementNA(0)) {
@@ -957,6 +988,7 @@ public class stringi {
       }
     }
   }
+
   public static SEXP stri_info(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_isempty(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -973,6 +1005,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   public static SEXP stri_join(SEXP strlist, SEXP sep, SEXP collapse, SEXP ignore_null) {
     if (Types.isNull(collapse)) {
       return __join_no_collapse(strlist, sep, ignore_null);
@@ -1032,6 +1065,7 @@ public class stringi {
       }
     }
   }
+
   public static SEXP stri_join_list(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_join2(SEXP s1, SEXP s2) {
     if (s1.length() <= 0) {
@@ -1056,6 +1090,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_length(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final int length = strings.length();
@@ -1071,6 +1106,7 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_list2matrix(SEXP x, SEXP byrow, SEXP fill, SEXP n_min) {
     final boolean bycolumn = !((AtomicVector) byrow).getElementAsLogical(0).toBooleanStrict();
     final String filler = ((AtomicVector) fill).getElementAsString(0);
@@ -1118,18 +1154,22 @@ public class stringi {
       return matrix.setAttribute(Symbols.DIM, new IntArrayVector(length, maxVectorLength));
     }
   }
+
   public static SEXP stri_locale_info(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_locale_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_locale_set(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_locate_all_boundaries(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_locate_first_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_locate_last_boundaries(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+
   public static SEXP stri_locate_first_charclass(SEXP str, SEXP pattern) {
     return __locate_firstlast_charclass(str, pattern, ReplaceType.FIRST);
   }
+
   public static SEXP stri_locate_last_charclass(SEXP str, SEXP pattern) {
     return __locate_firstlast_charclass(str, pattern, ReplaceType.LAST);
   }
+
   public static SEXP stri_locate_all_charclass(SEXP str, SEXP pattern, SEXP merge, SEXP omit_no_match) {
     final boolean is_merging = ((AtomicVector) merge).getElementAsLogical(0).toBooleanStrict();
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
@@ -1182,12 +1222,15 @@ public class stringi {
 
     return new ListVector(result);
   }
+
   public static SEXP stri_locate_last_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     return __locate_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.LAST);
   }
+
   public static SEXP stri_locate_first_fixed(SEXP str, SEXP pattern, SEXP opts_fixed) {
     return __locate_firstlast_fixed(str, pattern, opts_fixed, ReplaceType.FIRST);
   }
+
   public static SEXP stri_locate_all_fixed(SEXP str, SEXP pattern, SEXP omit_no_match, SEXP opts_fixed) {
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
     final int flags = __fixed_flags(opts_fixed, true);
@@ -1236,12 +1279,15 @@ public class stringi {
 
     return new ListVector(result);
   }
+
   public static SEXP stri_locate_last_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
     return __locate_firstlast_coll(str, pattern, opts_collator, ReplaceType.LAST);
   }
+
   public static SEXP stri_locate_first_coll(SEXP str, SEXP pattern, SEXP opts_collator) {
     return __locate_firstlast_coll(str, pattern, opts_collator, ReplaceType.FIRST);
   }
+
   public static SEXP stri_locate_all_coll(SEXP str, SEXP pattern, SEXP omit_no_match, SEXP opts_collator) {
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
     final RuleBasedCollator collator = __open_collator(opts_collator);
@@ -1293,6 +1339,7 @@ public class stringi {
 
     return new ListVector(result);
   }
+
   public static SEXP stri_locate_all_regex(SEXP str, SEXP pattern, SEXP omit_no_match, SEXP opts_regex) {
     final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
     final int flags = __regex_flags(opts_regex);
@@ -1333,12 +1380,15 @@ public class stringi {
 
     return new ListVector(result);
   }
+
   public static SEXP stri_locate_first_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     return __locate_firstlast_regex(str, pattern, opts_regex, ReplaceType.FIRST);
   }
+
   public static SEXP stri_locate_last_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     return __locate_firstlast_regex(str, pattern, opts_regex, ReplaceType.LAST);
   }
+
   public static SEXP stri_match_first_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_match_last_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_match_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
@@ -1357,12 +1407,15 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_order(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
     return __order_or_sort(str, decreasing, na_last, opts_collator, true);
   }
+
   public static SEXP stri_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator) {
     return __order_or_sort(str, decreasing, na_last, opts_collator, false);
   }
+
   public static SEXP stri_pad(SEXP str, SEXP width, SEXP side, SEXP pad, SEXP use_length) {
     if (!side.getTypeName().equals(IntVector.TYPE_NAME) || side.length() != 1) {
       throw new EvalException("incorrect argument");
@@ -1427,6 +1480,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static StringVector stri_prepare_arg_string(SEXP s, String name) {
     if (s instanceof StringVector) {
       return (StringVector) s;
@@ -1444,7 +1498,9 @@ public class stringi {
     }
     throw new EvalException("TODO");
   }
+
   public static SEXP stri_prepare_arg_POSIXct(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+
   public static DoubleVector stri_prepare_arg_double(SEXP s, String name) {
     if (s instanceof DoubleVector) {
       return (DoubleVector) s;
@@ -1460,6 +1516,7 @@ public class stringi {
     }
     throw new EvalException("TODO");
   }
+
   public static IntVector stri_prepare_arg_integer(SEXP s, String name) {
     if (s instanceof IntVector) {
       return (IntVector) s;
@@ -1475,12 +1532,14 @@ public class stringi {
     }
     throw new EvalException("TODO");
   }
+
   public static LogicalVector stri_prepare_arg_logical(SEXP s, String name) {
     if (s instanceof LogicalVector) {
       return (LogicalVector) s;
     }
     throw new EvalException("TODO");
   }
+
   public static SEXP stri_prepare_arg_raw(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_string_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_double_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -1488,6 +1547,7 @@ public class stringi {
   public static SEXP stri_prepare_arg_logical_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_shuffle(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_rand_strings(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+
   public static SEXP stri_replace_na(SEXP str, SEXP replacement) {
     final int length = str.length();
     final String[] result = new String[length];
@@ -1504,6 +1564,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_replace_all_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_fixed) {
     final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
     if (is_vectorized) {
@@ -1573,12 +1634,15 @@ public class stringi {
       }
     }
   }
+
   public static SEXP stri_replace_first_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_fixed) {
     return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.FIRST);
   }
+
   public static SEXP stri_replace_last_fixed(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_fixed) {
     return __replace_all_fixed_vectorized(str, pattern, replacement, opts_fixed, ReplaceType.LAST);
   }
+
   public static SEXP stri_replace_all_coll(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_collator) {
     throw new EvalException("TODO");
   }
@@ -1588,6 +1652,7 @@ public class stringi {
   public static SEXP stri_replace_last_coll(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_collator) {
     throw new EvalException("TODO");
   }
+
   public static SEXP stri_replace_all_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP vectorize_all, SEXP opts_regex) {
     final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
     if (is_vectorized) {
@@ -1643,12 +1708,15 @@ public class stringi {
       }
     }
   }
+
   public static SEXP stri_replace_first_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex) {
     return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.FIRST);
   }
+
   public static SEXP stri_replace_last_regex(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex) {
     return __replace_all_regex_vectorized(str, pattern, replacement, opts_regex, ReplaceType.LAST);
   }
+
   public static SEXP stri_replace_all_charclass(SEXP str, SEXP pattern, SEXP replacement, SEXP merge, SEXP vectorize_all) {
     final boolean is_merging = ((AtomicVector) merge).getElementAsLogical(0).toBooleanStrict();
     final boolean is_vectorized = ((AtomicVector) vectorize_all).getElementAsLogical(0).toBooleanStrict();
@@ -1701,12 +1769,15 @@ public class stringi {
       }
     }
   }
+
   public static SEXP stri_replace_first_charclass(SEXP str, SEXP pattern, SEXP replacement) {
     return __replace_firstlast_charclass(str, pattern, replacement, ReplaceType.FIRST);
   }
+
   public static SEXP stri_replace_last_charclass(SEXP str, SEXP pattern, SEXP replacement) {
     return __replace_firstlast_charclass(str, pattern, replacement, ReplaceType.LAST);
   }
+
   public static SEXP stri_reverse(SEXP str) {
     final int length = str.length();
     final String[] result = new String[length];
@@ -1740,6 +1811,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_split_boundaries(SEXP str, SEXP n, SEXP tokens_only, SEXP simplify, SEXP opts_brkiter) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, n);
@@ -1791,6 +1863,7 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, n);
   }
+
   public static SEXP stri_split_charclass(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int length = __recycling_rule(true, str, pattern, n, omit_empty);
@@ -1855,6 +1928,7 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, n);
   }
+
   public static SEXP stri_split_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5, SEXP s6, SEXP s7) { throw new EvalException("TODO"); }
   public static SEXP stri_split_fixed(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_fixed) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
@@ -1942,6 +2016,7 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, n);
   }
+
   public static SEXP stri_split_lines(SEXP str, SEXP omit_empty) {
     final int length = __recycling_rule(true, str, omit_empty);
     final StringVector[] result = new StringVector[length];
@@ -1968,6 +2043,7 @@ public class stringi {
 
     return new ListVector(result);
   }
+
   public static SEXP stri_split_lines1(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     if (strings.isElementNA(0)) {
@@ -1978,6 +2054,7 @@ public class stringi {
       return new StringArrayVector(splitted);
     }
   }
+
   public static SEXP stri_split_regex(SEXP str, SEXP pattern, SEXP n, SEXP omit_empty, SEXP tokens_only, SEXP simplify, SEXP opts_regex) {
     final boolean only_tokens = ((AtomicVector) tokens_only).getElementAsLogical(0).toBooleanStrict();
     final int flags = __regex_flags(opts_regex);
@@ -2055,11 +2132,13 @@ public class stringi {
 
     return __simplify_when_required(new ListVector(result), simplify, n);
   }
+
   public static SEXP stri_startswith_charclass(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_startswith_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_startswith_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_stats_general(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_stats_latex(SEXP s1) { throw new EvalException("TODO"); }
+
   public static SEXP stri_sub(SEXP str, SEXP from, SEXP to, SEXP length) {
     final SEXP dims = from.getAttribute(Symbols.DIM);
     if (Types.isMatrix(from) && 2 < ((IntVector) dims).getElementAsInt(1)) {
@@ -2109,9 +2188,11 @@ public class stringi {
           }
         }
       }
+
       return new StringArrayVector(result);
     }
   }
+
   public static SEXP stri_sub_replacement(SEXP str, SEXP from, SEXP to, SEXP length, SEXP omit_na, SEXP value) {
     final SEXP dims = from.getAttribute(Symbols.DIM);
     if (Types.isMatrix(from) && 2 < ((IntVector) dims).getElementAsInt(1)) {
@@ -2168,9 +2249,11 @@ public class stringi {
           }
         }
       }
+
       return new StringArrayVector(result);
     }
   }
+
   public static SEXP stri_subset_charclass(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_coll(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_fixed(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
@@ -2211,6 +2294,7 @@ public class stringi {
   public static SEXP stri_subset_charclass_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_coll_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
   public static SEXP stri_subset_fixed_replacement(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+
   public static SEXP stri_subset_regex_replacement(SEXP str, SEXP pattern, SEXP negate, SEXP opts_regex, SEXP value) {
     final int value_length = value.length();
     if (value_length <= 0) {
@@ -2255,38 +2339,49 @@ public class stringi {
   public static SEXP stri_timezone_set(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_timezone_info(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_char(SEXP s1, SEXP s2, SEXP s3) { throw new EvalException("TODO"); }
+
   public static SEXP stri_trans_isnfc(SEXP str) {
     return __trans_isnf(str, Normalizer2.getNFCInstance());
   }
+
   public static SEXP stri_trans_isnfd(SEXP str) {
     return __trans_isnf(str, Normalizer2.getNFDInstance());
   }
+
   public static SEXP stri_trans_isnfkc(SEXP str) {
     return __trans_isnf(str, Normalizer2.getNFKCInstance());
   }
+
   public static SEXP stri_trans_isnfkd(SEXP str) {
     return __trans_isnf(str, Normalizer2.getNFKDInstance());
   }
+
   public static SEXP stri_trans_isnfkc_casefold(SEXP str) {
     return __trans_isnf(str, Normalizer2.getNFKCCasefoldInstance());
   }
+
   public static SEXP stri_trans_general(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_list(SEXP s1, SEXP s0) { throw new EvalException("TODO"); }
   public static SEXP stri_trans_nfc(SEXP str) {
     return __trans_nf(str, Normalizer2.getNFCInstance());
   }
+
   public static SEXP stri_trans_nfd(SEXP str) {
     return __trans_nf(str, Normalizer2.getNFDInstance());
   }
+
   public static SEXP stri_trans_nfkc(SEXP str) {
     return __trans_nf(str, Normalizer2.getNFKCInstance());
   }
+
   public static SEXP stri_trans_nfkd(SEXP str) {
     return __trans_nf(str, Normalizer2.getNFKDInstance());
   }
+
   public static SEXP stri_trans_nfkc_casefold(SEXP str) {
     return __trans_nf(str, Normalizer2.getNFKCCasefoldInstance());
   }
+
   public static SEXP stri_trans_totitle(SEXP str, SEXP opts_brkiter) {
     final BreakIterator brkiter = __open_break_iterator(opts_brkiter, "word");
     final int length = str.length();
@@ -2307,6 +2402,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_trans_tolower(SEXP str, SEXP locale) {
     final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
     final int length = str.length();
@@ -2327,6 +2423,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_trans_toupper(SEXP str, SEXP locale) {
     final Locale language = Types.isNull(locale) ? Locale.getDefault() : Locale.forLanguageTag(locale.asString());
     final int length = str.length();
@@ -2347,15 +2444,19 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_trim_both(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.BOTH);
   }
+
   public static SEXP stri_trim_left(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.LEADING);
   }
+
   public static SEXP stri_trim_right(SEXP str, SEXP pattern) {
     return __trim_left_right(str, pattern, TrimOption.TRAILING);
   }
+
   public static SEXP stri_unescape_unicode(SEXP str) {
     final int length = str.length();
     final String[] result = new String[length];
@@ -2376,6 +2477,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_unique(SEXP str, SEXP opts_collator) {
     final int length = str.length();
     final StringVector strings = stri_prepare_arg_string(str, "str");
@@ -2401,6 +2503,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   public static SEXP stri_width(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final int length = strings.length();
@@ -2417,6 +2520,7 @@ public class stringi {
 
     return new IntArrayVector(result);
   }
+
   public static SEXP stri_wrap(SEXP str, SEXP width, SEXP cost_exponent, SEXP indent, SEXP exdent, SEXP prefix, SEXP initial, SEXP whitespace_only,
       SEXP use_length, SEXP locale) {
     final int indent_val = indent.asInt();
@@ -2593,6 +2697,7 @@ public class stringi {
       this.width = __width_string(text) + added;
     }
   }
+
   private enum ReplaceType {
     ALL, FIRST, LAST;
     boolean isAll() {
@@ -2605,6 +2710,7 @@ public class stringi {
       return LAST.equals(this);
     }
   }
+
   private static final class CollatedString {
     private final RuleBasedCollator collator;
     private final String str;
@@ -2631,6 +2737,7 @@ public class stringi {
       return hash;
     }
   }
+
   // @formatter:off
   private static final UnicodeSet COMBINING_MARKS = new UnicodeSet()
       .add(0x0300, 0x036F).add(0x1AB0, 0x1AFF).add(0x1DC0, 0x1DFF) // combining diacritics on letters
@@ -2646,30 +2753,31 @@ public class stringi {
     // https://stackoverflow.com/questions/3537706/how-to-unescape-a-java-string-literal-in-java#answer-13278219
     final Matcher matcher = ESCAPES.matcher(encoded);
     final StringBuilder decoded = new StringBuilder();
-      // Find each escape of the encoded string in succession.
+    // Find each escape of the encoded string in succession.
     int previousStart = 0;
-      while (matcher.find()) {
+    while (matcher.find()) {
       decoded.append(encoded.subSequence(previousStart, matcher.start()));
       if (matcher.start(1) >= 0) { // Decode a character escape.
         final char ch = matcher.group(1).charAt(0);
         switch (ch) {
-        // @formatter:off
-        case 'b': decoded.append('\b'); break;
-        case 'f': decoded.append('\f'); break;
-        case 'n': decoded.append('\n'); break;
-        case 'r': decoded.append('\r'); break;
-        case 't': decoded.append('\t'); break;
-        default: decoded.append(ch);
-        // @formatter:on
+          // @formatter:off
+          case 'b': decoded.append('\b'); break;
+          case 'f': decoded.append('\f'); break;
+          case 'n': decoded.append('\n'); break;
+          case 'r': decoded.append('\r'); break;
+          case 't': decoded.append('\t'); break;
+          default: decoded.append(ch);
+            // @formatter:on
         }
       } else if (matcher.start(2) >= 0) { // Decode an octal escape.
         decoded.appendCodePoint(Integer.parseInt(matcher.group(2), 8));
       } else /* if (matcher.start(3) >= 0) */ { // Decode a Unicode escape.
         decoded.appendCodePoint(Integer.parseInt(matcher.group(3), 16));
-          }
-      previousStart = matcher.end();
       }
+      previousStart = matcher.end();
+    }
     decoded.append(encoded.subSequence(previousStart, encoded.length()));
+
     return decoded.toString();
   }
   /**
@@ -2700,8 +2808,10 @@ public class stringi {
         }
       }
     }
+
     return length < 0 ? 0 : length;
   }
+
   private static StringVector __ensure_length(int length, StringVector exp) {
     final int expLength = exp.length();
     if (length == expLength) {
@@ -2710,6 +2820,7 @@ public class stringi {
       return new RepStringVector(exp, length, 1, exp.getAttributes());
     }
   }
+
   private static IntVector __ensure_length(int length, IntVector exp) {
     final int expLength = exp.length();
     if (length == expLength) {
@@ -2718,6 +2829,7 @@ public class stringi {
       return new RepIntVector(exp, length, 1, exp.getAttributes());
     }
   }
+
   private static LogicalVector __ensure_length(int length, LogicalVector exp) {
     final int expLength = exp.length();
     if (length == expLength) {
@@ -2726,6 +2838,7 @@ public class stringi {
       return new RepLogicalVector(exp, length, 1, exp.getAttributes());
     }
   }
+
   private static SEXP __trim_left_right(SEXP str, SEXP pattern, TrimOption side) {
     final int length = __recycling_rule(true, str, pattern);
     final String[] result = new String[length];
@@ -2781,6 +2894,7 @@ public class stringi {
 
     return flags;
   }
+
   private static int __regex_flags(SEXP opts_regex) {
     int flags = 0;
 
@@ -2833,6 +2947,7 @@ public class stringi {
 
     return flags;
   }
+
   private static String __binary_properties_to_Java(String pattern) {
     if (null == pattern) {
       return null;
@@ -2858,6 +2973,7 @@ public class stringi {
       // @formatter:on
     }
   }
+
   private static SEXP __simplify_when_required(SEXP resultSexp, SEXP simplify, SEXP n) {
     final Logical first_simplify = ((AtomicVector) simplify).getElementAsLogical(0);
     if (first_simplify.equals(Logical.FALSE)) {
@@ -2871,6 +2987,7 @@ public class stringi {
       return stri_list2matrix(resultSexp, LogicalVector.valueOf(true), StringVector.valueOf(filler), IntVector.valueOf(required_depth));
     }
   }
+
   private static IntMatrixBuilder __int_matrix_NA(int nrows, int ncols) {
     final IntMatrixBuilder builder = new IntMatrixBuilder(nrows, ncols);
     for (int i = 0; i < nrows; i++) {
@@ -2878,15 +2995,19 @@ public class stringi {
         builder.set(i, j, IntVector.NA);
       }
     }
+
     return builder;
   }
+
   private static StringVector __string_vector_NA(final int length) {
     final StringVector.Builder builder = StringVector.newBuilder();
     for (int j = 0; j < length; j++) {
       builder.addNA();
     }
+
     return builder.build();
   }
+
   private static SEXP __replace_firstlast_charclass(SEXP str, SEXP pattern, SEXP replacement, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern, replacement);
     final String[] result = new String[length];
@@ -2993,6 +3114,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   private static SEXP __replace_all_regex_vectorized(SEXP str, SEXP pattern, SEXP replacement, SEXP opts_regex, ReplaceType replaces) {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern, replacement);
@@ -3031,6 +3153,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   private static int __width_string(String element) {
     int width = 0;
     for (int j = 0; j < element.length(); /* j + charCount */) {
@@ -3038,8 +3161,10 @@ public class stringi {
       width += __width_char(cp);
       j += Character.charCount(cp);
     }
+
     return width;
   }
+
   private static int __width_char(int codePoint) {
     if (codePoint == 0x00AD) {
       return 1; /* SOFT HYPHEN */
@@ -3071,6 +3196,7 @@ public class stringi {
     /* any other characters have width 1 */
     return 1;
   }
+
   private static SEXP __trans_isnf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final Logical[] result = new Logical[length];
@@ -3086,6 +3212,7 @@ public class stringi {
 
     return new LogicalArrayVector(result);
   }
+
   private static SEXP __trans_nf(SEXP str, Normalizer2 normalizer) {
     final int length = str.length();
     final String[] result = new String[length];
@@ -3101,6 +3228,7 @@ public class stringi {
 
     return new StringArrayVector(result);
   }
+
   private static BreakIterator __break_iterator_for_type(String breakType, Locale locale) {
     if ("character".equals(breakType)) {
       return BreakIterator.getCharacterInstance(locale);
@@ -3115,6 +3243,7 @@ public class stringi {
     }
     throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
   }
+
   private static BreakIterator __open_break_iterator(SEXP opts_brkiter, String defaultType) {
     if (Types.isNull(opts_brkiter)) {
       // use default locale
@@ -3138,6 +3267,7 @@ public class stringi {
       throw new EvalException("incorrect break iterator option specifier. see ?stri_opts_brkiter");
     }
   }
+
   private static RuleBasedCollator __open_collator(SEXP opts_collator) {
     final int narg = (opts_collator == null) ? 0 : opts_collator.length();
     if (narg <= 0) {
@@ -3223,9 +3353,11 @@ public class stringi {
       if (numeric != null) {
         collator.setNumericCollation(numeric);
       }
+
       return collator;
     }
   }
+
   private static SEXP __join2_with_collapse(SEXP s1, SEXP s2, SEXP collapse) {
     if (Types.isNull(collapse)) {
       return stri_join2(s1, s2);
@@ -3261,6 +3393,7 @@ public class stringi {
 
     return StringVector.valueOf(sb.toString());
   }
+
   private static SEXP __join_no_collapse(SEXP strlist, SEXP sep, SEXP ignore_null) {
     final boolean ignore_empty = ((AtomicVector) ignore_null).getElementAsLogical(0).toBooleanStrict();
     final ListVector lists = (ListVector) __prepare_arg_list_ignore_empty(strlist, ignore_empty);
@@ -3318,6 +3451,7 @@ public class stringi {
       return new StringArrayVector(result);
     }
   }
+
   private static Vector __prepare_arg_list_raw(SEXP x, String name) {
     if (name == null) {
       name = "<noname>";
@@ -3333,9 +3467,11 @@ public class stringi {
       }
       return list;
     } else {
+
       return stri_prepare_arg_string(x, name);
     }
   }
+
   private static SEXP __prepare_arg_list_ignore_empty(SEXP x, boolean ignore_empty) {
     if (!ignore_empty) {
       return x;
@@ -3352,8 +3488,10 @@ public class stringi {
         result.add(element);
       }
     }
+
     return new ListVector(result);
   }
+
 private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, ReplaceType replaces) {
     final int length = __recycling_rule(true, str, pattern);
     final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
@@ -3392,6 +3530,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return __locate_set_dimnames_matrix(builder);
   }
+
   private static SEXP __locate_firstlast_coll(SEXP str, SEXP pattern, SEXP opts_collator, ReplaceType replaces) {
     final RuleBasedCollator collator = __open_collator(opts_collator);
     final int length = __recycling_rule(true, str, pattern);
@@ -3434,6 +3573,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return __locate_set_dimnames_matrix(builder);
   }
+
   private static SEXP __locate_firstlast_fixed(SEXP str, SEXP pattern, SEXP opts_fixed, ReplaceType replaces) {
     final int flags = __fixed_flags(opts_fixed, false);
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
@@ -3475,6 +3615,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return __locate_set_dimnames_matrix(builder);
   }
+
   private static SEXP __locate_firstlast_regex(SEXP str, SEXP pattern, SEXP opts_regex, ReplaceType replaces) {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern);
@@ -3508,11 +3649,13 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return __locate_set_dimnames_matrix(builder);
   }
+
   private static IntVector __locate_set_dimnames_matrix(IntMatrixBuilder builder) {
     final StringVector names = new StringArrayVector(new String[] { "start", "end" });
     builder.setColNames(names);
     return builder.build();
   }
+
   private static SEXP __order_or_sort(SEXP str, SEXP decreasing, SEXP na_last, SEXP opts_collator, boolean order) {
     final boolean desc = ((AtomicVector) decreasing).getElementAsLogical(0).toBooleanStrict();
     final Logical lastNA = stri_prepare_arg_logical(na_last, "na_last").getElementAsLogical(0);
@@ -3573,6 +3716,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
           result[j++] = StringVector.NA;
         }
       }
+
       return new StringArrayVector(result);
     }
   }
@@ -3617,6 +3761,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new StringArrayVector(result);
   }
+
   private static SEXP __extract_firstlast_coll(SEXP str, SEXP pattern, SEXP opts_collator, ReplaceType replaces) {
     final RuleBasedCollator collator = __open_collator(opts_collator);
     final int length = __recycling_rule(true, str, pattern);
@@ -3666,6 +3811,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new StringArrayVector(result);
   }
+
   private static SEXP __extract_firstlast_fixed(SEXP str, SEXP pattern, SEXP opts_fixed, ReplaceType replaces) {
     final int flags = __fixed_flags(opts_fixed, true);
     final boolean is_insensitive = (flags & Pattern.CASE_INSENSITIVE) > 0;
@@ -3710,6 +3856,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new StringArrayVector(result);
   }
+
   private static SEXP __extract_firstlast_regex(SEXP str, SEXP pattern, SEXP opts_regex, ReplaceType replaces) {
     final int flags = __regex_flags(opts_regex);
     final int length = __recycling_rule(true, str, pattern);
@@ -3750,6 +3897,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new StringArrayVector(result);
   }
+
   private static SEXP __cmp_codepoints(SEXP s1, SEXP s2, boolean negate) {
     final StringVector e1 = stri_prepare_arg_string(s1, "e1");
     final StringVector e2 = stri_prepare_arg_string(s2, "e2");
@@ -3768,6 +3916,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new LogicalArrayVector(result);
   }
+
   private static SEXP __subset_by_logical(StringVector strings, Logical[] which, int found) {
     final String[] result = new String[found];
 
@@ -3781,6 +3930,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
 
     return new StringArrayVector(result);
   }
+
   private static Range<Integer> __adjust_bounds(boolean uselengths, int beginIndex, int endIndex, String element) {
     if (uselengths) {
       endIndex = beginIndex + endIndex - 1;
@@ -3798,8 +3948,10 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
     } else {
       endIndex = element.offsetByCodePoints(element.length(), endIndex + 1);
     }
+
     return Range.closedOpen(beginIndex, endIndex);
   }
+
   private static Deque<Integer> __wrap_greedy(int nwords, int width_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
     final Deque<Integer> wrap_after = new LinkedList<>();
     int len = add_1 + widths_orig[0];
@@ -3811,8 +3963,10 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
         len += widths_orig[j];
       }
     }
+
     return wrap_after;
   }
+
   private static Deque<Integer> __wrap_dynamic(int nwords, int width_val, double exponent_val, int[] widths_orig, int[] widths_trim, int add_1, int add_n) {
     final Deque<Integer> wrap_after = new LinkedList<>();
     // where cost[i][j] == cost of printing words i..j in a single line, i<=j
@@ -3892,6 +4046,7 @@ private static SEXP __locate_firstlast_charclass(SEXP str, SEXP pattern, Replace
         wrap_after.addLast(k);
       }
     }
+
     return wrap_after;
   }
 }
