@@ -128,6 +128,53 @@ If you would like to get rid of e.g. whitespaces from the start or end
 of a string, see \code{\link{stri_trim}}.
 }
 \examples{
+
+
+
+string <- c("hello world", "", "hell-o world", NA_character_, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa")
+
+opt1 <- stri_opts_collator(strength = 1, uppercase_first = TRUE, numeric = TRUE)
+opt2 <- stri_opts_collator(strength = 2, uppercase_first = TRUE, numeric = TRUE)
+opt3 <- stri_opts_collator(strength = 3, uppercase_first = TRUE, numeric = TRUE)
+opt4 <- stri_opts_collator(strength = 4, uppercase_first = TRUE, numeric = TRUE)
+opt5 <- stri_opts_collator(strength = 1)
+opt6 <- stri_opts_collator(strength = 2)
+opt7 <- stri_opts_collator(strength = 3)
+opt8 <- stri_opts_collator(strength = 4)
+pattern ="(a|0){1}"
+x0 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = NULL)
+x1 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt1)
+x2 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt2)
+x3 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt3)
+x4 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt4)
+x5 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt5)
+x6 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt6)
+x7 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt7)
+x8 <- stri_replace_all_coll(string, pattern = pattern, "Z", opts_collator = opt8)
+
+x0exp <-  c("hello world", "", "hell-o world", NA, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa" )
+x1exp <-  list(structure(c(1L, 7L, 6L, 11L), .Dim = c(2L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  6L, 8L, 5L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 8L, 4L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))))
+x2exp <-  list(structure(c(1L, 7L, 6L, 11L), .Dim = c(2L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(integer(0), .Dim = c(0L,  2L), .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  6L, 8L, 5L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 8L, 4L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))))
+x3exp <-  list(structure(c(1L, 6L, 7L, 5L, 6L, 11L), .Dim = c(3L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 6L, 7L, 8L, 4L, 5L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  4L, 5L, 7L, 8L, 3L, 4L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))))
+x4exp <-  list(structure(c(1L, 6L, 7L, 5L, 6L, 11L), .Dim = c(3L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(integer(0), .Dim = c(0L,  2L), .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 6L, 7L, 8L, 4L, 5L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  4L, 5L, 7L, 8L, 3L, 4L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))))
+x5exp <-  c("hello world", "", "hell-o world", NA, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa" )
+x6exp <-  c("hello world", "", "hell-o world", NA, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa" )
+x7exp <-  c("hello world", "", "hell-o world", NA, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa" )
+x8exp <-  c("hello world", "", "hell-o world", NA, "Hel\nlo World", "100 2 00 1000 53 aaa AAA aaa" )
+
+stopifnot(identical(x0, x0exp))
+stopifnot(identical(x1, x1exp))
+stopifnot(identical(x2, x2exp))
+stopifnot(identical(x3, x3exp))
+stopifnot(identical(x4, x4exp))
+stopifnot(identical(x5, x5exp))
+stopifnot(identical(x6, x6exp))
+stopifnot(identical(x7, x7exp))
+stopifnot(identical(x8, x8exp))
+
+
+
+
 stri_replace_all_charclass("aaaa", "[a]", "b", merge=c(TRUE, FALSE))
 
 stri_replace_all_charclass("a\\nb\\tc   d", "\\\\p{WHITE_SPACE}", " ")
