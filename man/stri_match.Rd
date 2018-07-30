@@ -83,6 +83,54 @@ provided for consistency with other string searching functions' wrappers,
 cf. e.g. \code{\link{stri_extract}}.
 }
 \examples{
+
+string <-  c("breakfast=eggs", "dessert=icecream", "no food here", "Hello.World",  "Hello\nWorld", "0He@ll0 W0'rld")
+string2 <-  c("breakfast=eggs=fried", "dessert=icecream=cold", "no food here",  "Hello.World.there", "Hello\nWorld\nhere", "0He@ll0 W0'rld s0mewhere" )
+
+s1 = stri_match_all_regex(string, "(\\\\w+)=(\\\\w+)")
+s2 = stri_match_all_regex(string, "(\\\\w+)")
+s3 = stri_match_all_regex(string2, "(\\\\w+)")
+s4 = stri_match_all_regex(string2, "\\\\w+")
+
+s1exp =  list(
+	structure(c("breakfast=eggs", "breakfast", "eggs"), .Dim = c(1L,  3L)),
+	structure(c("dessert=icecream", "dessert", "icecream"), .Dim = c(1L,  3L)),
+	structure(c(NA_character_, NA_character_, NA_character_ ), .Dim = c(1L, 3L)),
+	structure(c(NA_character_, NA_character_,  NA_character_), .Dim = c(1L, 3L)),
+	structure(c(NA_character_,  NA_character_, NA_character_), .Dim = c(1L, 3L)),
+	structure(c(NA_character_,  NA_character_, NA_character_), .Dim = c(1L, 3L))
+	)
+
+s2exp =  list(
+	structure(c("breakfast", "eggs", "breakfast", "eggs"), .Dim = c(2L,  2L)),
+	structure(c("dessert", "icecream", "dessert", "icecream" ), .Dim = c(2L, 2L)),
+	structure(c("no", "food", "here", "no",  "food", "here"), .Dim = c(3L, 2L)),
+	structure(c("Hello", "World",  "Hello", "World"), .Dim = c(2L, 2L)),
+	structure(c("Hello", "World",  "Hello", "World"), .Dim = c(2L, 2L)),
+	structure(c("0He", "ll0",  "W0", "rld", "0He", "ll0", "W0", "rld"), .Dim = c(4L, 2L))
+	)
+
+s3exp =  list(
+	structure(c("breakfast", "eggs", "fried", "breakfast", "eggs",  "fried"), .Dim = c(3L, 2L)),
+	structure(c("dessert", "icecream",  "cold", "dessert", "icecream", "cold"), .Dim = c(3L, 2L)),
+	structure(c("no",  "food", "here", "no", "food", "here"), .Dim = c(3L, 2L)),
+	structure(c("Hello",  "World", "there", "Hello", "World", "there"), .Dim = c(3L, 2L )),
+	structure(c("Hello", "World", "here", "Hello", "World", "here" ), .Dim = c(3L, 2L)),
+	structure(c("0He", "ll0", "W0", "rld",  "s0mewhere", "0He", "ll0", "W0", "rld", "s0mewhere"), .Dim = c(5L,  2L))
+	)
+
+s4exp =  list(
+	structure(c("breakfast", "eggs", "fried"), .Dim = c(3L,  1L)),
+	structure(c("dessert", "icecream", "cold"), .Dim = c(3L,  1L)),
+	structure(c("no", "food", "here"), .Dim = c(3L, 1L)),
+	structure(c("Hello",  "World", "there"), .Dim = c(3L, 1L)),
+	structure(c("Hello", "World",  "here"), .Dim = c(3L, 1L)),
+	structure(c("0He", "ll0", "W0", "rld",  "s0mewhere"), .Dim = c(5L, 1L))
+	)
+
+stopifnot(identical(s1, s1exp), identical(s2, s2exp), identical(s3, s3exp), identical(s4, s4exp))
+
+
 stri_match_all_regex("breakfast=eggs, lunch=pizza, dessert=icecream",
    "(\\\\w+)=(\\\\w+)")
 stri_match_all_regex(c("breakfast=eggs", "lunch=pizza", "no food here"),
