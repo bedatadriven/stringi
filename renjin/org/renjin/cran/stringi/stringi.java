@@ -12,23 +12,20 @@ import java.nio.charset.CharsetEncoder;
 import java.nio.charset.CodingErrorAction;
 import java.text.Normalizer;
 import java.text.StringCharacterIterator;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.ibm.icu.text.*;
+import org.renjin.eval.Context;
 import org.renjin.eval.EvalException;
+import org.renjin.primitives.Deparse;
 import org.renjin.primitives.Native;
 import org.renjin.primitives.Types;
 import org.renjin.primitives.Warning;
 import org.renjin.primitives.matrix.IntMatrixBuilder;
 import org.renjin.primitives.matrix.Matrix;
+import org.renjin.primitives.matrix.StringMatrixBuilder;
 import org.renjin.primitives.packaging.DllInfo;
 import org.renjin.primitives.packaging.DllSymbol;
 import org.renjin.primitives.sequence.RepDoubleVector;
@@ -57,15 +54,6 @@ import com.ibm.icu.lang.UCharacter;
 import com.ibm.icu.lang.UCharacter.EastAsianWidth;
 import com.ibm.icu.lang.UCharacter.HangulSyllableType;
 import com.ibm.icu.lang.UProperty;
-import com.ibm.icu.text.BreakIterator;
-import com.ibm.icu.text.CaseMap;
-import com.ibm.icu.text.Collator;
-import com.ibm.icu.text.Normalizer2;
-import com.ibm.icu.text.RuleBasedBreakIterator;
-import com.ibm.icu.text.RuleBasedCollator;
-import com.ibm.icu.text.StringSearch;
-import com.ibm.icu.text.UnicodeSet;
-import com.ibm.icu.text.UnicodeSetSpanner;
 import com.ibm.icu.text.UnicodeSetSpanner.TrimOption;
 import com.ibm.icu.util.ULocale;
 
@@ -1351,9 +1339,93 @@ public class stringi {
   public static SEXP stri_locate_last_regex(SEXP str, SEXP pattern, SEXP opts_regex) {
     return __locate_firstlast_regex(str, pattern, opts_regex, ReplaceType.LAST);
   }
-  public static SEXP stri_match_first_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_match_last_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) { throw new EvalException("TODO"); }
-  public static SEXP stri_match_all_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4, SEXP s5) { throw new EvalException("TODO"); }
+
+  public static SEXP stri_match_first_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) {
+    throw new EvalException("TODO");
+  }
+
+  public static SEXP stri_match_last_regex(SEXP s1, SEXP s2, SEXP s3, SEXP s4) {
+    throw new EvalException("TODO");
+  }
+
+  public static String _deparse(SEXP str) {
+    return Deparse.deparseExp(Native.currentContext(), str);
+  }
+  public static void _print(String str) {
+    Native.currentContext().getSession().getStdOut().println(str);
+    Native.currentContext().getSession().getStdOut().flush();
+  }
+
+  public static SEXP stri_match_all_regex(SEXP str, SEXP pattern, SEXP omit_no_match, SEXP cg_missing, SEXP opts_regex) {
+    final int flags = __regex_flags(opts_regex);
+    final boolean omits_not_found = ((AtomicVector) omit_no_match).getElementAsLogical(0).toBooleanStrict();
+    final int length = __recycling_rule(true, str, pattern);
+    final StringVector[] result = new StringVector[length];
+    final StringVector strings = __ensure_length(length, stri_prepare_arg_string(str, "str"));
+    final StringVector patterns = __ensure_length(length, stri_prepare_arg_string(pattern, "pattern"));
+    final StringVector cg = (StringVector) stri_prepare_arg_string_1(cg_missing, "cg_missing");
+    final String cg_string = cg.getElementAsString(0);
+
+    for (int i = 0; i < length; i++) {
+      if (patterns.isElementNA(i) || patterns.getElementAsString(i).length() <= 0) {
+        if (!patterns.isElementNA(i)) {
+          Native.currentContext().warn("empty search patterns are not supported");
+        }
+        result[i] = __stri_matrix_NA(1, 1).build();
+        continue;
+      }
+
+      final String element = strings.getElementAsString(i);
+      final String normalizedPattern = __binary_properties_to_Java(patterns.getElementAsString(i));
+      final Matcher matcher = Pattern.compile(normalizedPattern, flags).matcher(element);
+      int pattern_cur_groups = matcher.groupCount();
+
+      if(strings.isElementNA(i)) {
+        result[i] = __stri_matrix_NA(1,pattern_cur_groups + 1).build();
+        continue;
+      }
+
+      matcher.reset();
+      int match_count = 0;
+      while (matcher.find()) {
+        match_count++;
+      }
+
+      if (match_count == 0) {
+        int nrows = omits_not_found ? 0 : 1;
+        result[i] = __stri_matrix_NA(nrows,pattern_cur_groups + 1).build();
+        continue;
+      }
+
+      final LinkedList<Range<Integer>> occurrences = new LinkedList<>();
+      matcher.reset();
+      while (matcher.find()) {
+        occurrences.add(Range.closedOpen(matcher.start(), matcher.end()));
+        for (int j = 0; j < pattern_cur_groups; j++) {
+          occurrences.add(Range.closedOpen(matcher.start(j+1), matcher.end(j+1)));
+        }
+      }
+
+      StringMatrixBuilder cur_res = new StringMatrixBuilder(match_count, pattern_cur_groups + 1);
+      int index = 0;
+      for (int row = 0; row < match_count; row++) {
+        for (int col = 0; col < pattern_cur_groups+1; col++) {
+          Range<Integer> entery = occurrences.get(index);
+          index++;
+          if (entery.lowerEndpoint() < 0 || entery.upperEndpoint() < 0) {
+            cur_res.setValue(row, col, cg_string);
+          } else {
+            String value = element.substring(entery.lowerEndpoint(), entery.upperEndpoint());
+            cur_res.setValue(row, col, value);
+          }
+        }
+      }
+      result[i] = cur_res.build();
+    }
+
+    return new ListVector(result);
+  }
+
   public static SEXP stri_numbytes(SEXP str) {
     final StringVector strings = stri_prepare_arg_string(str, "str");
     final int length = strings.length();
@@ -1494,7 +1566,27 @@ public class stringi {
     throw new EvalException("TODO");
   }
   public static SEXP stri_prepare_arg_raw(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
-  public static SEXP stri_prepare_arg_string_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
+
+  public static SEXP stri_prepare_arg_string_1(SEXP x, String argname) {
+    if (x == Null.INSTANCE) {
+      argname = "noname";
+    }
+
+    x = stri_prepare_arg_string(x, argname);
+    int nx = x.length();
+
+    if (nx <= 0) {
+      Native.currentContext().warn("argument `" + argname + "` should be a non-empty vector");
+      // won't come here anyway
+      return x; // avoid compiler warning
+    } else if (nx > 1) {
+      Native.currentContext().warn("argument `" + argname + "` should be one character string; taking the first one");
+      return StringVector.valueOf(((StringVector) x).getElementAsString(0));
+    } else { // if (nx == 1)
+      return x;
+    }
+  }
+
   public static SEXP stri_prepare_arg_double_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_integer_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
   public static SEXP stri_prepare_arg_logical_1(SEXP s1, SEXP s2) { throw new EvalException("TODO"); }
@@ -2893,6 +2985,17 @@ public class stringi {
     }
     return builder;
   }
+
+  private static StringMatrixBuilder __stri_matrix_NA(int nrows, int ncols) {
+    final StringMatrixBuilder builder = new StringMatrixBuilder(nrows, ncols);
+    for (int i = 0; i < nrows; i++) {
+      for (int j = 0; j < ncols; j++) {
+        builder.setValue(i, j, StringVector.NA);
+      }
+    }
+    return builder;
+  }
+
   private static StringVector __string_vector_NA(final int length) {
     final StringVector.Builder builder = StringVector.newBuilder();
     for (int j = 0; j < length; j++) {
