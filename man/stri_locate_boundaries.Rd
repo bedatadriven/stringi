@@ -77,8 +77,26 @@ This is function is equivalent to a call to
 \code{stri_locate_*_boundaries(str, type="word", skip_word_none=TRUE, locale=locale)}
 }
 \examples{
+
+
+string <- c("hello world", "", "hell-o world", NA_character_, "Hel\nlo World")
+opts <- stri_opts_brkiter(type = "word", skip_word_number = TRUE, skip_line_hard = TRUE)
+
+x1 = stri_locate_all_boundaries(string, omit_no_match = FALSE, opts_brkiter = NULL)
+x2 = stri_locate_all_boundaries(string, omit_no_match = TRUE, opts_brkiter = NULL)
+x3 = stri_locate_all_boundaries(string, omit_no_match = FALSE, opts_brkiter = opts)
+x4 = stri_locate_all_boundaries(string, omit_no_match = TRUE, opts_brkiter = opts)
+
+x1exp <- list(structure(c(1L, 7L, 6L, 11L), .Dim = c(2L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  6L, 8L, 5L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 8L, 4L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))))
+x2exp <- list(structure(c(1L, 7L, 6L, 11L), .Dim = c(2L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(integer(0), .Dim = c(0L,  2L), .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  6L, 8L, 5L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 8L, 4L, 7L, 12L), .Dim = c(3L, 2L), .Dimnames = list(NULL,      c("start", "end"))))
+x3exp <- list(structure(c(1L, 6L, 7L, 5L, 6L, 11L), .Dim = c(3L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 6L, 7L, 8L, 4L, 5L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  4L, 5L, 7L, 8L, 3L, 4L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))))
+x4exp <- list(structure(c(1L, 6L, 7L, 5L, 6L, 11L), .Dim = c(3L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(integer(0), .Dim = c(0L,  2L), .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  5L, 6L, 7L, 8L, 4L, 5L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))), structure(c(NA_integer_, NA_integer_ ), .Dim = 1:2, .Dimnames = list(NULL, c("start", "end"))), structure(c(1L,  4L, 5L, 7L, 8L, 3L, 4L, 6L, 7L, 12L), .Dim = c(5L, 2L), .Dimnames = list(     NULL, c("start", "end"))))
+
+stopifnot(identical(x1, x1exp), identical(x2, x2exp), identical(x3, x3exp), identical(x4, x4exp))
+
+
 test <- "The\\u00a0above-mentioned    features are very useful. Warm thanks to their developers."
-stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="line_breask"))
+stri_locate_all_boundaries(test, opts_brkiter=stri_opts_brkiter(type="line_break"))
 stri_locate_all_boundaries(test, type="word")
 stri_locate_all_boundaries(test, type="sentence")
 stri_locate_all_boundaries(test, type="character")

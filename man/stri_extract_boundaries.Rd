@@ -78,6 +78,29 @@ to locate word boundaries, and all non-word characters
 (\code{UBRK_WORD_NONE} rule status) are ignored.
 }
 \examples{
+
+string <- c("hello world", "", "hell-o world", NA_character_, "hell-o world'")
+x1 <- stri_extract_all_boundaries(string, simplify = FALSE, omit_no_match = FALSE, opts_brkiter = NULL)
+x2 <- stri_extract_all_boundaries(string, simplify = FALSE, omit_no_match = TRUE, opts_brkiter = NULL)
+x3 <- stri_extract_all_boundaries(string, simplify = TRUE, omit_no_match = FALSE, opts_brkiter = NULL)
+x4 <- stri_extract_all_boundaries(string, simplify = TRUE, omit_no_match = TRUE, opts_brkiter = NULL)
+
+x1exp <- list(c("hello ", "world"), NA_character_, c("hell-", "o ", "world"), NA_character_, c("hell-", "o ", "world'"))
+x2exp <- list(c("hello ", "world"), character(0), c("hell-", "o ", "world"), NA_character_, c("hell-", "o ", "world'"))
+x3exp <- structure(c("hello ", NA, "hell-", NA, "hell-", "world", "", "o ", "", "o ", "", "", "world", "", "world'"), .Dim = c(5L, 3L))
+x4exp <- structure(c("hello ", "", "hell-", NA, "hell-", "world", "", "o ", "", "o ", "", "", "world", "", "world'"), .Dim = c(5L, 3L))
+
+
+print(x1)
+
+print(x2)
+
+print(x3)
+
+print(x3exp)
+
+stopifnot( identical(x1, x1exp), identical(x2, x2exp), identical(x3, x3exp), identical(x4, x4exp) )
+
 stri_extract_all_words("stringi: THE string processing package 123.48...")
 
 }
