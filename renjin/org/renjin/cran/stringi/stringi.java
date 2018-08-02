@@ -572,7 +572,7 @@ public class stringi {
   public static SEXP stri_enc_toutf32(SEXP s1) { throw new EvalException("TODO"); }
   public static SEXP stri_encode(SEXP str, SEXP from, SEXP to, SEXP to_raw) {
     final boolean returns_raw = ((AtomicVector) to_raw).asLogical().toBooleanStrict();
-    final Vector prepared = __prepare_arg_list_raw(str, "str");
+    final org.renjin.sexp.Vector prepared = __prepare_arg_list_raw(str, "str");
     final int length = prepared.length();
     if (length <= 0) {
       return returns_raw ? ListVector.EMPTY : StringVector.EMPTY;
@@ -3661,7 +3661,7 @@ public class stringi {
     }
   }
 
-  private static Vector __prepare_arg_list_raw(SEXP x, String name) {
+  private static org.renjin.sexp.Vector __prepare_arg_list_raw(SEXP x, String name) {
     if (name == null) {
       name = "<noname>";
     }
